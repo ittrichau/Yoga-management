@@ -66,7 +66,7 @@ def get_fraud_alerts(user: dict = Depends(require_role("MANAGER"))):
             alerts.append({
                 "type": "missing_payment",
                 "severity": "critical",
-                "message": f"Ban {r['drink_name']} cho {r['customer_name']} khong co goi, khong thu tien!",
+                "message": f"Bán {r['drink_name']} cho {r['customer_name']} không có gói, không thu tiền!",
                 "created_at": r["created_at"],
             })
 
@@ -84,7 +84,7 @@ def get_fraud_alerts(user: dict = Depends(require_role("MANAGER"))):
             alerts.append({
                 "type": "rapid_sales",
                 "severity": "warning",
-                "message": f"{r['user_name']} da ban {r['cnt']} ly hom nay (cao bat thuong)",
+                "message": f"{r['user_name']} đã bán {r['cnt']} ly hôm nay (cao bất thường)",
                 "created_at": "today",
             })
     return alerts
@@ -125,7 +125,7 @@ def export_transactions_csv(
         ).fetchall()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "Ngay", "Ma KH", "Ten KH", "Do uong", "So ly", "Doanh thu", "Ghi chu", "Nhan vien"])
+    writer.writerow(["ID", "Ngày", "Mã KH", "Tên KH", "Đồ uống", "Số ly", "Doanh thu", "Ghi chú", "Nhân viên"])
     for r in rows:
         writer.writerow([r["id"], r["created_at"], r["customer_code"], r["customer_name"],
                         r["drink_name"], r["servings"], r["amount"], r["notes"], r["created_by_name"]])
@@ -142,7 +142,7 @@ def render():
     """Render the dashboard page."""
     role = app.storage.user.get("role", "STAFF")
     render_navbar()
-    ui.label("Bang dieu khien").classes("text-2xl font-bold mb-4")
+    ui.label("Bảng điều khiển").classes("text-2xl font-bold mb-4")
 
     today_prefix = _today_str() + "%"
     week_ago = _week_ago_str()
@@ -176,46 +176,46 @@ def render():
     with ui.row().classes("w-full gap-4 mb-8 flex-wrap"):
         with ui.card().classes("w-full md:w-1/4 p-4 bg-blue-50 text-center"):
             ui.label(str(d["total_customers"])).classes("text-3xl font-bold text-blue-700")
-            ui.label("Khach hang").classes("text-sm text-blue-600")
+            ui.label("Khách hàng").classes("text-sm text-blue-600")
         with ui.card().classes("w-full md:w-1/4 p-4 bg-green-50 text-center"):
             ui.label(str(d["total_drinks"])).classes("text-3xl font-bold text-green-700")
-            ui.label("Do uong ban ra").classes("text-sm text-green-600")
+            ui.label("Đồ uống bán ra").classes("text-sm text-green-600")
         with ui.card().classes("w-full md:w-1/4 p-4 bg-yellow-50 text-center"):
             ui.label(str(d["today_tx"])).classes("text-3xl font-bold text-yellow-700")
-            ui.label("Giao dich hom nay").classes("text-sm text-yellow-600")
+            ui.label("Giao dịch hôm nay").classes("text-sm text-yellow-600")
         with ui.card().classes("w-full md:w-1/4 p-4 bg-purple-50 text-center"):
-            ui.label(f"{d['today_revenue']:,.0f}d").classes("text-3xl font-bold text-purple-700")
-            ui.label("Doanh thu hom nay").classes("text-sm text-purple-600")
+            ui.label(f"{d['today_revenue']:,.0f}đ").classes("text-3xl font-bold text-purple-700")
+            ui.label("Doanh thu hôm nay").classes("text-sm text-purple-600")
 
     # Revenue summary
     with ui.row().classes("w-full gap-4 mb-8 flex-wrap"):
         with ui.card().classes("w-full md:w-1/2 p-4 bg-indigo-50"):
-            ui.label("Doanh thu tuan nay").classes("text-lg text-indigo-700")
-            ui.label(f"{d['week_revenue']:,.0f}d").classes("text-2xl font-bold text-indigo-800")
+            ui.label("Doanh thu tuần này").classes("text-lg text-indigo-700")
+            ui.label(f"{d['week_revenue']:,.0f}đ").classes("text-2xl font-bold text-indigo-800")
         with ui.card().classes("w-full md:w-1/2 p-4 bg-pink-50"):
-            ui.label("Doanh thu thang nay").classes("text-lg text-pink-700")
-            ui.label(f"{d['month_revenue']:,.0f}d").classes("text-2xl font-bold text-pink-800")
+            ui.label("Doanh thu tháng này").classes("text-lg text-pink-700")
+            ui.label(f"{d['month_revenue']:,.0f}đ").classes("text-2xl font-bold text-pink-800")
 
     # Low stock alerts
     if d["low_stock_count"] > 0:
         with ui.card().classes("w-full p-4 mb-6 bg-red-50 border-2 border-red-300"):
-            ui.label(f"!!! {d['low_stock_count']} nguyen lieu sap HET!").classes("text-lg font-bold text-red-700")
+            ui.label(f"!!! {d['low_stock_count']} nguyên liệu sắp HẾT!").classes("text-lg font-bold text-red-700")
             for p in d["low_stock_items"]:
-                ui.label(f"* {p['name']}: con {p['current_stock']:.0f} {p['unit']} (toi thieu {p['min_stock']:.0f})").classes("text-sm text-red-600 ml-4")
+                ui.label(f"* {p['name']}: còn {p['current_stock']:.0f} {p['unit']} (tối thiểu {p['min_stock']:.0f})").classes("text-sm text-red-600 ml-4")
 
     # Recent transactions
     with ui.row().classes("w-full items-center justify-between mb-4 flex-wrap gap-2"):
-        ui.label("Giao dich gan day").classes("text-xl font-bold")
-        ui.button("Xuat CSV", icon="download", on_click=lambda: ui.navigate.to("/api/dashboard/transactions/export-csv", new_tab=True)).props("outlined").classes("text-sm")
+        ui.label("Giao dịch gần đây").classes("text-xl font-bold")
+        ui.button("Xuất CSV", icon="download", on_click=lambda: ui.navigate.to("/api/dashboard/transactions/export-csv", new_tab=True)).props("outlined").classes("text-sm")
 
     tx_table = ui.table(
         columns=[
-            {"name": "time", "label": "Gio", "field": "time"},
-            {"name": "customer", "label": "Khach hang", "field": "customer"},
-            {"name": "drink", "label": "Do uong", "field": "drink"},
-            {"name": "servings", "label": "Ly", "field": "servings"},
+            {"name": "time", "label": "Giờ", "field": "time"},
+            {"name": "customer", "label": "Khách hàng", "field": "customer"},
+            {"name": "drink", "label": "Đồ uống", "field": "drink"},
+            {"name": "servings", "label": "Số ly", "field": "servings"},
             {"name": "amount", "label": "Doanh thu", "field": "amount"},
-            {"name": "by", "label": "Nhan vien", "field": "by"},
+            {"name": "by", "label": "Nhân viên", "field": "by"},
         ],
         rows=[],
         row_key="id",
@@ -228,7 +228,7 @@ def render():
             "customer": f"{r['customer_code']} - {r['customer_name']}",
             "drink": r["drink_name"],
             "servings": r["servings"],
-            "amount": f"{r['amount']:,.0f}d" if r["amount"] > 0 else "📦",
+            "amount": f"{r['amount']:,.0f}đ" if r["amount"] > 0 else "📦",
             "by": r["user_name"],
         }
         for r in d["recent_tx"]
@@ -237,7 +237,7 @@ def render():
 
     # Fraud alerts for MANAGER+
     if role in ("MANAGER", "OWNER"):
-        ui.label("Canh bao gian lan").classes("text-xl font-bold mt-8 mb-4")
+        ui.label("Giao dịch bất thường").classes("text-xl font-bold mt-8 mb-4")
         with get_db() as conn:
             suspicious = conn.execute(
                 """SELECT t.*, c.full_name as customer_name, c.code as customer_code,
@@ -254,10 +254,10 @@ def render():
         if suspicious:
             alert_table = ui.table(
                 columns=[
-                    {"name": "time", "label": "Gio", "field": "time"},
-                    {"name": "customer", "label": "Khach hang", "field": "customer"},
-                    {"name": "drink", "label": "Do uong", "field": "drink"},
-                    {"name": "by", "label": "Nhan vien", "field": "by"},
+                    {"name": "time", "label": "Giờ", "field": "time"},
+                    {"name": "customer", "label": "Khách hàng", "field": "customer"},
+                    {"name": "drink", "label": "Đồ uống", "field": "drink"},
+                    {"name": "by", "label": "Nhân viên", "field": "by"},
                 ],
                 rows=[],
                 row_key="id",
@@ -273,18 +273,18 @@ def render():
             ]
             alert_table.update()
         else:
-            ui.label("OK Khong co giao dich dang ngo hom nay.").classes("text-green-600 italic")
+            ui.label("OK - Không có giao dịch đáng ngờ hôm nay.").classes("text-green-600 italic")
 
     # Ingredient stock overview
-    ui.label("Tong quan ton kho nguyen lieu").classes("text-xl font-bold mt-8 mb-4")
+    ui.label("Tổng quan tồn kho nguyên liệu").classes("text-xl font-bold mt-8 mb-4")
 
     stock_table = ui.table(
         columns=[
-            {"name": "name", "label": "Nguyen lieu", "field": "name"},
-            {"name": "unit", "label": "Don vi", "field": "unit"},
-            {"name": "stock", "label": "Ton kho", "field": "stock"},
-            {"name": "min", "label": "Toi thieu", "field": "min"},
-            {"name": "status", "label": "Trang thai", "field": "status"},
+            {"name": "name", "label": "Nguyên liệu", "field": "name"},
+            {"name": "unit", "label": "Đơn vị", "field": "unit"},
+            {"name": "stock", "label": "Tồn kho", "field": "stock"},
+            {"name": "min", "label": "Tối thiểu", "field": "min"},
+            {"name": "status", "label": "Trạng thái", "field": "status"},
         ],
         rows=[],
         row_key="id",
@@ -293,9 +293,9 @@ def render():
     stock_table.rows = []
     for s in d["all_stock"]:
         if s["current_stock"] <= s["min_stock"]:
-            status = "!!! THIEU"
+            status = "!!! THIẾU"
         elif s["current_stock"] <= s["min_stock"] * 2:
-            status = "!! Canh bao"
+            status = "!! Cảnh báo"
         else:
             status = "OK"
         stock_table.rows.append({
