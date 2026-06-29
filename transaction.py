@@ -1,11 +1,11 @@
-"""Sales/transaction creation."""
+"""Sales/transaction creation - filtered by location."""
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from nicegui import app, ui
 from pydantic import BaseModel
 
 from database import get_db
-from auth import get_current_user, require_role, render_navbar
+from auth import get_current_user, require_role, render_navbar, get_current_location_id
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -18,7 +18,8 @@ class TransactionCreate(BaseModel):
     servings: float = 1
     amount: float = 0
     notes: str = ""
-    package_item_id: int | None = None  # If using prepaid package
+    package_item_id: int | None = None
+
 
 class TransactionFilter(BaseModel):
     customer_id: int | None = None
@@ -34,10 +35,11 @@ def list_transactions(
     customer_id: int | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    location_id: int | None = None,
     limit: int = 50,
     user: dict = Depends(get_current_user),
 ):
-    """List transactions with optional filters."""
+    """List transactions with optional filters and location."""
     with get_db() as conn:
         where = []
         params = []
@@ -50,6 +52,9 @@ def list_transactions(
         if date_to:
             where.append("t.created_at <= ?")
             params.append(date_to + " 23:59:59")
+        if location_id:
+            where.append("t.location_id = ?")
+            params.append(location_id)
         where_clause = ("WHERE " + " AND ".join(where)) if where else ""
         rows = conn.execute(
             f"""SELECT t.*, c.code as customer_code, c.full_name as customer_name,
@@ -66,21 +71,34 @@ def list_transactions(
 
 
 @router.get("/today")
-def get_today_transactions(user: dict = Depends(get_current_user)):
+def get_today_transactions(location_id: int | None = None, user: dict = Depends(get_current_user)):
     """Get today's transactions."""
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d") + "%"
     with get_db() as conn:
-        rows = conn.execute(
-            """SELECT t.*, c.code as customer_code, c.full_name as customer_name,
-                       d.name as drink_name, u.full_name as user_name
-                FROM transactions t
-                JOIN customers c ON c.id = t.customer_id
-                JOIN drinks d ON d.id = t.drink_id
-                JOIN users u ON u.id = t.created_by
-                WHERE t.created_at LIKE ?
-                ORDER BY t.created_at DESC""",
-            (today,),
-        ).fetchall()
+        if location_id:
+            rows = conn.execute(
+                """SELECT t.*, c.code as customer_code, c.full_name as customer_name,
+                           d.name as drink_name, u.full_name as user_name
+                    FROM transactions t
+                    JOIN customers c ON c.id = t.customer_id
+                    JOIN drinks d ON d.id = t.drink_id
+                    JOIN users u ON u.id = t.created_by
+                    WHERE t.created_at LIKE ? AND t.location_id = ?
+                    ORDER BY t.created_at DESC""",
+                (today, location_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT t.*, c.code as customer_code, c.full_name as customer_name,
+                           d.name as drink_name, u.full_name as user_name
+                    FROM transactions t
+                    JOIN customers c ON c.id = t.customer_id
+                    JOIN drinks d ON d.id = t.drink_id
+                    JOIN users u ON u.id = t.created_by
+                    WHERE t.created_at LIKE ?
+                    ORDER BY t.created_at DESC""",
+                (today,),
+            ).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -90,19 +108,21 @@ def create_transaction(data: TransactionCreate, user: dict = Depends(get_current
     with get_db() as conn:
         # Validate customer
         customer = conn.execute(
-            "SELECT id, code, full_name FROM customers WHERE id = ? AND is_active = 1",
+            "SELECT id, code, full_name, location_id FROM customers WHERE id = ? AND is_active = 1",
             (data.customer_id,),
         ).fetchone()
         if customer is None:
-            raise HTTPException(status_code=404, detail="Customer not found or inactive")
+            raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng hoặc đã bị vô hiệu hóa")
+
+        loc_id = customer["location_id"]
 
         # Validate drink
         drink = conn.execute(
-            "SELECT id, name, price_per_serving FROM drinks WHERE id = ? AND is_active = 1",
-            (data.drink_id,),
+            "SELECT id, name, price_per_serving FROM drinks WHERE id = ? AND is_active = 1 AND location_id = ?",
+            (data.drink_id, loc_id),
         ).fetchone()
         if drink is None:
-            raise HTTPException(status_code=404, detail="Drink not found or inactive")
+            raise HTTPException(status_code=404, detail="Đồ uống không tồn tại hoặc không thuộc cơ sở này")
 
         # Calculate amount if using direct payment
         amount = data.amount
@@ -111,32 +131,30 @@ def create_transaction(data: TransactionCreate, user: dict = Depends(get_current
         # If using package, validate and deduct
         if package_item_id:
             package_item = conn.execute(
-                """SELECT pi.*, p.id as package_id, p.customer_id
+                """SELECT pi.*, p.id as package_id, p.customer_id, p.location_id
                    FROM package_items pi
                    JOIN packages p ON p.id = pi.package_id
                    WHERE pi.id = ? AND p.is_active = 1""",
                 (package_item_id,),
             ).fetchone()
             if package_item is None:
-                raise HTTPException(status_code=404, detail="Package item not found or package deactivated")
+                raise HTTPException(status_code=404, detail="Không tìm thấy gói hoặc gói đã bị vô hiệu hóa")
             if package_item["customer_id"] != data.customer_id:
-                raise HTTPException(status_code=400, detail="Package does not belong to this customer")
+                raise HTTPException(status_code=400, detail="Gói không thuộc khách hàng này")
             if package_item["remaining_servings"] < data.servings:
-                raise HTTPException(status_code=400, detail=f"Insufficient servings in package. Remaining: {package_item['remaining_servings']:.1f}")
-            # Use package (no direct payment)
+                raise HTTPException(status_code=400,
+                                    detail=f"Không đủ ly trong gói. Còn lại: {package_item['remaining_servings']:.1f}")
             amount = 0
         else:
-            # Direct payment - calculate amount if not specified
             if amount == 0:
                 amount = drink["price_per_serving"] * data.servings
-            # Deduct ingredient stock
-            _deduct_ingredients(conn, data.drink_id, data.servings)
+            _deduct_ingredients(conn, data.drink_id, data.servings, loc_id)
 
         # Insert transaction
         cur = conn.execute(
-            """INSERT INTO transactions (customer_id, drink_id, package_item_id, servings, amount, notes, created_by)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (data.customer_id, data.drink_id, package_item_id, data.servings, amount, data.notes, user["id"]),
+            """INSERT INTO transactions (location_id, customer_id, drink_id, package_item_id, servings, amount, notes, created_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (loc_id, data.customer_id, data.drink_id, package_item_id, data.servings, amount, data.notes, user["id"]),
         )
         tx_id = cur.lastrowid
 
@@ -150,34 +168,36 @@ def create_transaction(data: TransactionCreate, user: dict = Depends(get_current
         # Audit log
         payment_type = "package" if package_item_id else "cash"
         conn.execute(
-            """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
-               VALUES (?, 'create', 'transaction', ?, ?)""",
-            (user["id"], tx_id,
+            """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+               VALUES (?, ?, 'create', 'transaction', ?, ?)""",
+            (loc_id, user["id"], tx_id,
              f'{{"customer": "{customer["full_name"]}", "drink": "{drink["name"]}", "servings": {data.servings}, "amount": {amount}, "type": "{payment_type}"}}'),
         )
 
-    return {"id": tx_id, "message": "Transaction created", "amount": amount, "type": payment_type}
+    return {"id": tx_id, "message": "Giao dịch đã được tạo", "amount": amount, "type": payment_type}
 
 
-def _deduct_ingredients(conn, drink_id: int, servings: float):
+def _deduct_ingredients(conn, drink_id: int, servings: float, loc_id: int):
     """Deduct ingredient stock based on drink recipe."""
     recipe = conn.execute(
         """SELECT dr.*, i.name as ingredient_name, i.current_stock, i.unit
            FROM drink_recipes dr
            JOIN ingredients i ON i.id = dr.ingredient_id
-           WHERE dr.drink_id = ?""",
-        (drink_id,),
+           WHERE dr.drink_id = ? AND i.location_id = ?""",
+        (drink_id, loc_id),
     ).fetchall()
     for rec in recipe:
         needed = rec["quantity_per_serving"] * servings
         new_stock = rec["current_stock"] - needed
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        conn.execute("UPDATE ingredients SET current_stock = ?, updated_at = ? WHERE id = ?",
-                     (new_stock, now, rec["ingredient_id"]))
         conn.execute(
-            """INSERT INTO inventory_adjustments (ingredient_id, adjustment_type, quantity, reason)
-               VALUES (?, 'remove', ?, ?)""",
-            (rec["ingredient_id"], needed, f"Auto-deduct from transaction: {drink_id}"),
+            "UPDATE ingredients SET current_stock = ?, updated_at = ? WHERE id = ?",
+            (new_stock, now, rec["ingredient_id"]),
+        )
+        conn.execute(
+            """INSERT INTO inventory_adjustments (location_id, ingredient_id, adjustment_type, quantity, reason)
+               VALUES (?, ?, 'remove', ?, ?)""",
+            (loc_id, rec["ingredient_id"], needed, f"Auto-deduct from transaction: {drink_id}"),
         )
         if new_stock < 0:
             raise HTTPException(status_code=400,
@@ -187,11 +207,24 @@ def _deduct_ingredients(conn, drink_id: int, servings: float):
 # ---------------------------------------------------------------------------
 # NiceGUI UI
 # ---------------------------------------------------------------------------
+@ui.page("/sales")
+def sales_page():
+    if not app.storage.user.get("token"):
+        ui.navigate.to("/login")
+        return
+    if not get_current_location_id():
+        ui.navigate.to("/select-location")
+        return
+
+    render()
+    render_navbar()
+
+
 def render():
     """Render the sales / transaction creation page."""
     role = app.storage.user.get("role", "STAFF")
+    loc_id = get_current_location_id()
 
-    render_navbar()
     ui.label("Bán hàng").classes("text-2xl font-bold mb-4")
 
     # Step 1: Search and select customer
@@ -208,12 +241,13 @@ def render():
             if search:
                 like = f"%{search}%"
                 rows = conn.execute(
-                    "SELECT id, code, full_name FROM customers WHERE is_active = 1 AND (code LIKE ? OR full_name LIKE ?) ORDER BY full_name LIMIT 20",
-                    (like, like),
+                    "SELECT id, code, full_name FROM customers WHERE is_active = 1 AND location_id = ? AND (code LIKE ? OR full_name LIKE ?) ORDER BY full_name LIMIT 20",
+                    (loc_id, like, like),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT id, code, full_name FROM customers WHERE is_active = 1 ORDER BY full_name LIMIT 50"
+                    "SELECT id, code, full_name FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name LIMIT 50",
+                    (loc_id,),
                 ).fetchall()
         customer_options.clear()
         for r in rows:
@@ -221,13 +255,12 @@ def render():
         customer_select.set_options(customer_options)
         if customer_options:
             customer_select.set_value(list(customer_options.keys())[0])
-        # After selecting customer, load their packages
         load_packages()
 
     # Customer packages info
     pkg_info = ui.label().classes("text-sm text-blue-600 italic mt-2")
     package_select = ui.select({}, label="Dùng gói (để trống nếu bán lẻ)").props("outlined").classes("w-full mb-2")
-    package_item_options = {}  # {package_item_id: "Package Name - Drink Name: X/Y servings"}
+    package_item_options = {}
 
     def load_packages():
         customer_id = customer_select.value
@@ -242,9 +275,9 @@ def render():
                    FROM packages p
                    JOIN package_items pi ON pi.package_id = p.id AND pi.remaining_servings > 0
                    JOIN drinks d ON d.id = pi.drink_id
-                   WHERE p.customer_id = ? AND p.is_active = 1
+                   WHERE p.customer_id = ? AND p.is_active = 1 AND p.location_id = ?
                    ORDER BY p.created_at DESC""",
-                (customer_id,),
+                (customer_id, loc_id),
             ).fetchall()
         package_item_options.clear()
         options = {"": "--- Bán lẻ (thu tiền) ---"}
@@ -261,13 +294,16 @@ def render():
 
     # Step 2: Select drink
     with get_db() as conn:
-        all_drinks = conn.execute("SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 ORDER BY name").fetchall()
+        all_drinks = conn.execute(
+            "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
+            (loc_id,),
+        ).fetchall()
     drink_options = {r["id"]: f"{r['name']} ({r['price_per_serving']:,.0f}đ/ly)" for r in all_drinks}
     drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined").classes("w-full mb-2")
     if drink_options:
         drink_select.set_value(list(drink_options.keys())[0])
 
-    servings = ui.number("Số ly", value=1, min=1).props("outlined").classes("w-full mb-2")
+    servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined").classes("w-full mb-2")
     amount = ui.number("Số tiền (VNĐ)", value=0).props("outlined").classes("w-full mb-2")
     notes = ui.input("Ghi chú").props("outlined").classes("w-full mb-4")
 
@@ -275,7 +311,6 @@ def render():
     success = ui.label().classes("text-green-600 text-sm mb-2")
 
     def on_package_change():
-        """Auto-fill servings and drink if package is selected."""
         pkg_id = package_select.value
         if pkg_id and pkg_id in package_item_options:
             pkg = package_item_options[pkg_id]
@@ -290,12 +325,10 @@ def render():
     package_select.on("update:model-value", on_package_change)
 
     def on_drink_change():
-        """Auto-fill amount based on drink price if selling retail."""
         if not package_select.value:
             drink_id = drink_select.value
             if drink_id and drink_id in drink_options:
                 qty = servings.value or 1
-                # Find the drink price
                 with get_db() as conn:
                     drink = conn.execute("SELECT price_per_serving FROM drinks WHERE id = ?", (drink_id,)).fetchone()
                 if drink:
@@ -323,37 +356,33 @@ def render():
             err.set_text("Vui lòng nhập số tiền hoặc chọn gói trả trước")
             return
 
-        token = app.storage.user.get("token", "")
         user_id = app.storage.user.get("user_id", 1)
 
         try:
             with get_db() as conn:
-                # Validate customer
                 customer = conn.execute(
-                    "SELECT id, full_name FROM customers WHERE id = ? AND is_active = 1",
-                    (customer_id,),
+                    "SELECT id, full_name FROM customers WHERE id = ? AND is_active = 1 AND location_id = ?",
+                    (customer_id, loc_id),
                 ).fetchone()
                 if customer is None:
                     err.set_text("Khách hàng không tồn tại hoặc đã bị vô hiệu hóa")
                     return
 
-                # Validate drink
                 drink = conn.execute(
-                    "SELECT id, name, price_per_serving FROM drinks WHERE id = ? AND is_active = 1",
-                    (drink_id,),
+                    "SELECT id, name, price_per_serving FROM drinks WHERE id = ? AND is_active = 1 AND location_id = ?",
+                    (drink_id, loc_id),
                 ).fetchone()
                 if drink is None:
                     err.set_text("Đồ uống không tồn tại hoặc đã bị vô hiệu hóa")
                     return
 
-                # If using package
                 if pkg_item_id:
                     package_item = conn.execute(
-                        """SELECT pi.*, p.name as pkg_name, p.id as pkg_id
+                        """SELECT pi.*, p.name as pkg_name, p.id as pkg_id, p.location_id
                            FROM package_items pi
                            JOIN packages p ON p.id = pi.package_id
-                           WHERE pi.id = ? AND p.is_active = 1 AND p.customer_id = ?""",
-                        (pkg_item_id, customer_id),
+                           WHERE pi.id = ? AND p.is_active = 1 AND p.customer_id = ? AND p.location_id = ?""",
+                        (pkg_item_id, customer_id, loc_id),
                     ).fetchone()
                     if package_item is None:
                         err.set_text("Gói không hợp lệ hoặc không thuộc khách hàng này")
@@ -361,41 +390,35 @@ def render():
                     if package_item["remaining_servings"] < qty:
                         err.set_text(f"Không đủ ly trong gói. Còn {package_item['remaining_servings']:.0f} ly")
                         return
-                    amt = 0  # No charge for package
+                    amt = 0
                 else:
-                    # Auto-deduct ingredients for direct sales
                     if amt == 0:
                         amt = drink["price_per_serving"] * qty
-                    _deduct_ingredients(conn, drink_id, qty)
+                    _deduct_ingredients(conn, drink_id, qty, loc_id)
 
-                # Insert transaction
                 cur = conn.execute(
-                    """INSERT INTO transactions (customer_id, drink_id, package_item_id, servings, amount, notes, created_by)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (customer_id, drink_id, pkg_item_id, qty, amt, notes.value, user_id),
+                    """INSERT INTO transactions (location_id, customer_id, drink_id, package_item_id, servings, amount, notes, created_by)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (loc_id, customer_id, drink_id, pkg_item_id, qty, amt, notes.value, user_id),
                 )
                 tx_id = cur.lastrowid
 
-                # Deduct package if using
                 if pkg_item_id:
                     conn.execute(
                         "UPDATE package_items SET remaining_servings = remaining_servings - ? WHERE id = ?",
                         (qty, pkg_item_id),
                     )
 
-                # Audit
                 payment_type = "gói" if pkg_item_id else "tiền mặt"
                 conn.execute(
-                    """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
-                       VALUES (?, 'create', 'transaction', ?, ?)""",
-                    (user_id, tx_id,
+                    """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+                       VALUES (?, ?, 'create', 'transaction', ?, ?)""",
+                    (loc_id, user_id, tx_id,
                      f'{{"customer": "{customer["full_name"]}", "drink": "{drink["name"]}", "servings": {qty}, "amount": {amt}, "type": "{payment_type}"}}'),
                 )
 
             success.set_text(f"✅ Đã bán {qty} ly {drink['name']} cho {customer['full_name']}. {'(Gói)' if pkg_item_id else f'Thu {amt:,.0f}đ'}")
             ui.notify("Bán hàng thành công!", type="positive")
-
-            # Reset and refresh
             load_packages()
             refresh_today_table()
 
@@ -430,9 +453,9 @@ def render():
                     JOIN customers c ON c.id = t.customer_id
                     JOIN drinks d ON d.id = t.drink_id
                     JOIN users u ON u.id = t.created_by
-                    WHERE t.created_at LIKE ?
+                    WHERE t.created_at LIKE ? AND t.location_id = ?
                     ORDER BY t.created_at DESC LIMIT 50""",
-                (today,),
+                (today, loc_id),
             ).fetchall()
         today_table.rows = [
             {

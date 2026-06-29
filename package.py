@@ -1,11 +1,11 @@
-"""Prepaid package management."""
+"""Prepaid package management - filtered by location."""
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from nicegui import app, ui
 from pydantic import BaseModel
 
 from database import get_db
-from auth import get_current_user, require_role, render_navbar
+from auth import get_current_user, require_role, render_navbar, get_current_location_id
 
 router = APIRouter(prefix="/api/packages", tags=["packages"])
 
@@ -27,14 +27,17 @@ class PackageItemAdd(BaseModel):
 # API endpoints
 # ---------------------------------------------------------------------------
 @router.get("")
-def list_packages(customer_id: int | None = None, user: dict = Depends(get_current_user)):
-    """List active packages with optional customer filter."""
+def list_packages(customer_id: int | None = None, location_id: int | None = None, user: dict = Depends(get_current_user)):
+    """List active packages with optional customer filter and location."""
     with get_db() as conn:
         where = "WHERE p.is_active = 1"
         params = []
         if customer_id:
             where += " AND p.customer_id = ?"
             params.append(customer_id)
+        if location_id:
+            where += " AND p.location_id = ?"
+            params.append(location_id)
         rows = conn.execute(
             f"""SELECT p.*, c.full_name as customer_name, c.code as customer_code
                 FROM packages p
@@ -71,7 +74,7 @@ def get_package(package_id: int, user: dict = Depends(get_current_user)):
             (package_id,),
         ).fetchone()
         if pkg is None:
-            raise HTTPException(status_code=404, detail="Package not found")
+            raise HTTPException(status_code=404, detail="Không tìm thấy gói")
         items = conn.execute(
             """SELECT pi.*, d.name as drink_name
                FROM package_items pi
@@ -87,13 +90,15 @@ def get_package(package_id: int, user: dict = Depends(get_current_user)):
 @router.post("", status_code=201)
 def create_package(data: PackageCreate, user: dict = Depends(get_current_user)):
     """Create a new prepaid package. Any authenticated user can create."""
+    # Determine location from customer
     with get_db() as conn:
-        customer = conn.execute("SELECT id FROM customers WHERE id = ? AND is_active = 1", (data.customer_id,)).fetchone()
+        customer = conn.execute("SELECT id, location_id FROM customers WHERE id = ? AND is_active = 1", (data.customer_id,)).fetchone()
         if customer is None:
-            raise HTTPException(status_code=404, detail="Customer not found or inactive")
+            raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng hoặc đã bị vô hiệu hóa")
+        loc_id = customer["location_id"]
         cur = conn.execute(
-            "INSERT INTO packages (customer_id, name, total_amount, created_by) VALUES (?, ?, ?, ?)",
-            (data.customer_id, data.name, data.total_amount, user["id"]),
+            "INSERT INTO packages (location_id, customer_id, name, total_amount, created_by) VALUES (?, ?, ?, ?, ?)",
+            (loc_id, data.customer_id, data.name, data.total_amount, user["id"]),
         )
         package_id = cur.lastrowid
         for item in data.items:
@@ -102,11 +107,11 @@ def create_package(data: PackageCreate, user: dict = Depends(get_current_user)):
                 (package_id, item.get("drink_id"), item.get("total_servings", 0), item.get("total_servings", 0)),
             )
         conn.execute(
-            """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
-               VALUES (?, 'create', 'package', ?, ?)""",
-            (user["id"], package_id, f'{{"customer_id": {data.customer_id}, "name": "{data.name}", "amount": {data.total_amount}}}'),
+            """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+               VALUES (?, ?, 'create', 'package', ?, ?)""",
+            (loc_id, user["id"], package_id, f'{{"customer_id": {data.customer_id}, "name": "{data.name}", "amount": {data.total_amount}}}'),
         )
-    return {"id": package_id, "message": "Package created"}
+    return {"id": package_id, "message": "Gói đã được tạo"}
 
 
 @router.get("/customer/{customer_id}/packages")
@@ -143,25 +148,38 @@ def deactivate_package(package_id: int, user: dict = Depends(require_role("MANAG
     with get_db() as conn:
         pkg = conn.execute("SELECT * FROM packages WHERE id = ?", (package_id,)).fetchone()
         if pkg is None:
-            raise HTTPException(status_code=404, detail="Package not found")
+            raise HTTPException(status_code=404, detail="Không tìm thấy gói")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         conn.execute("UPDATE packages SET is_active = 0, updated_at = ? WHERE id = ?", (now, package_id))
         conn.execute(
-            """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
-               VALUES (?, 'deactivate', 'package', ?, ?)""",
-            (user["id"], package_id, f'{{"name": "{pkg["name"]}"}}'),
+            """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+               VALUES (?, ?, 'deactivate', 'package', ?, ?)""",
+            (pkg["location_id"], user["id"], package_id, f'{{"name": "{pkg["name"]}"}}'),
         )
-    return {"message": "Package deactivated"}
+    return {"message": "Gói đã bị vô hiệu hóa"}
 
 
 # ---------------------------------------------------------------------------
 # NiceGUI UI
 # ---------------------------------------------------------------------------
+@ui.page("/packages")
+def packages_page():
+    if not app.storage.user.get("token"):
+        ui.navigate.to("/login")
+        return
+    if not get_current_location_id():
+        ui.navigate.to("/select-location")
+        return
+
+    render()
+    render_navbar()
+
+
 def render():
     """Render the package management page."""
     role = app.storage.user.get("role", "STAFF")
+    loc_id = get_current_location_id()
 
-    render_navbar()
     ui.label("Quản lý gói trả trước").classes("text-2xl font-bold mb-4")
 
     # Search customer
@@ -176,12 +194,13 @@ def render():
             if search:
                 like = f"%{search}%"
                 rows = conn.execute(
-                    "SELECT id, code, full_name FROM customers WHERE is_active = 1 AND (code LIKE ? OR full_name LIKE ?) ORDER BY full_name LIMIT 20",
-                    (like, like),
+                    "SELECT id, code, full_name FROM customers WHERE is_active = 1 AND location_id = ? AND (code LIKE ? OR full_name LIKE ?) ORDER BY full_name LIMIT 20",
+                    (loc_id, like, like),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT id, code, full_name FROM customers WHERE is_active = 1 ORDER BY full_name LIMIT 50"
+                    "SELECT id, code, full_name FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name LIMIT 50",
+                    (loc_id,),
                 ).fetchall()
         customer_select_options.clear()
         for r in rows:
@@ -206,8 +225,8 @@ def render():
     def refresh():
         customer_id = customer_select.value
         with get_db() as conn:
-            where = "WHERE p.is_active = 1"
-            params = []
+            where = "WHERE p.is_active = 1 AND p.location_id = ?"
+            params = [loc_id]
             if customer_id:
                 where += " AND p.customer_id = ?"
                 params.append(customer_id)
@@ -249,7 +268,10 @@ def render():
 
         # Customer select inside dialog
         with get_db() as conn:
-            all_customers = conn.execute("SELECT id, code, full_name FROM customers WHERE is_active = 1 ORDER BY full_name").fetchall()
+            all_customers = conn.execute(
+                "SELECT id, code, full_name FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name",
+                (loc_id,),
+            ).fetchall()
         cust_options = {r["id"]: f"{r['code']} - {r['full_name']}" for r in all_customers}
         p_customer = ui.select(cust_options, label="Khách hàng *").props("outlined").classes("w-full mb-2")
         p_name = ui.input("Tên gói", value="").props("outlined").classes("w-full mb-2")
@@ -259,7 +281,10 @@ def render():
         package_items = []
 
         with get_db() as conn:
-            all_drinks = conn.execute("SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 ORDER BY name").fetchall()
+            all_drinks = conn.execute(
+                "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
+                (loc_id,),
+            ).fetchall()
         drink_options = {r["id"]: f"{r['name']} ({r['price_per_serving']:,.0f}đ/ly)" for r in all_drinks}
 
         items_container = ui.column().classes("w-full mb-4")
@@ -285,8 +310,8 @@ def render():
             user_id = app.storage.user.get("user_id", 1)
             with get_db() as conn:
                 cur = conn.execute(
-                    "INSERT INTO packages (customer_id, name, total_amount, created_by) VALUES (?, ?, ?, ?)",
-                    (p_customer.value, p_name.value, p_amount.value or 0, user_id),
+                    "INSERT INTO packages (location_id, customer_id, name, total_amount, created_by) VALUES (?, ?, ?, ?, ?)",
+                    (loc_id, p_customer.value, p_name.value, p_amount.value or 0, user_id),
                 )
                 package_id = cur.lastrowid
                 for item in package_items:
@@ -298,9 +323,9 @@ def render():
                             (package_id, drink_id, qty, qty),
                         )
                 conn.execute(
-                    """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
-                       VALUES (?, 'create', 'package', ?, ?)""",
-                    (user_id, package_id, f'{{"customer_id": {p_customer.value}, "amount": {p_amount.value or 0}}}'),
+                    """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+                       VALUES (?, ?, 'create', 'package', ?, ?)""",
+                    (loc_id, user_id, package_id, f'{{"customer_id": {p_customer.value}, "amount": {p_amount.value or 0}}}'),
                 )
             create_dialog.close()
             refresh()

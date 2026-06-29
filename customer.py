@@ -1,17 +1,14 @@
-"""Customer management and check-in."""
+"""Customer management and check-in - filtered by location."""
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from nicegui import app, ui
 from pydantic import BaseModel
 
 from database import get_db
-from auth import get_current_user, require_role, render_navbar
+from auth import get_current_user, require_role, render_navbar, get_current_location_id
 
 router = APIRouter(prefix="/api/customers", tags=["customers"])
 
-# ---------------------------------------------------------------------------
-# Pydantic schemas
-# ---------------------------------------------------------------------------
 class CustomerCreate(BaseModel):
     code: str
     full_name: str
@@ -25,107 +22,129 @@ class CustomerUpdate(BaseModel):
     email: str | None = None
     notes: str | None = None
 
-# ---------------------------------------------------------------------------
-# API endpoints
-# ---------------------------------------------------------------------------
+
 @router.get("")
-def list_customers(search: str = "", user: dict = Depends(get_current_user)):
-    """List customers with optional search by code/name/phone."""
+def list_customers(search: str = "", location_id: int | None = None, user: dict = Depends(get_current_user)):
     with get_db() as conn:
         if search:
             like = f"%{search}%"
-            rows = conn.execute(
-                """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at
-                   FROM customers WHERE is_active = 1 AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?)
-                   ORDER BY full_name""",
-                (like, like, like),
-            ).fetchall()
+            if location_id:
+                rows = conn.execute(
+                    """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
+                       FROM customers WHERE is_active = 1 AND location_id = ? AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?)
+                       ORDER BY full_name""",
+                    (location_id, like, like, like),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
+                       FROM customers WHERE is_active = 1 AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?)
+                       ORDER BY full_name""",
+                    (like, like, like),
+                ).fetchall()
         else:
-            rows = conn.execute(
-                """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at
-                   FROM customers WHERE is_active = 1 ORDER BY full_name"""
-            ).fetchall()
+            if location_id:
+                rows = conn.execute(
+                    """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
+                       FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name""",
+                    (location_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
+                       FROM customers WHERE is_active = 1 ORDER BY full_name"""
+                ).fetchall()
     return [dict(r) for r in rows]
+
 
 @router.get("/{customer_id}")
 def get_customer(customer_id: int, user: dict = Depends(get_current_user)):
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM customers WHERE id = ?", (customer_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM customers WHERE id = ?", (customer_id,)).fetchone()
     if row is None:
-        raise HTTPException(status_code=404, detail="Customer not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng")
     return dict(row)
+
 
 @router.post("", status_code=201)
 def create_customer(data: CustomerCreate, user: dict = Depends(get_current_user)):
-    """Create a new customer. STAFF can also create."""
     with get_db() as conn:
-        existing = conn.execute(
-            "SELECT id FROM customers WHERE code = ?", (data.code,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM customers WHERE code = ? AND location_id = ?", (data.code, data.get("location_id"))).fetchone()
         if existing:
-            raise HTTPException(status_code=400, detail="Customer code already exists")
+            raise HTTPException(status_code=400, detail="Mã KH đã tồn tại tại cơ sở này")
         cur = conn.execute(
-            """INSERT INTO customers (code, full_name, phone, email, notes, created_by)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (data.code, data.full_name, data.phone, data.email, data.notes, user["id"]),
+            """INSERT INTO customers (location_id, code, full_name, phone, email, notes, created_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (data.get("location_id"), data.code, data.full_name, data.phone, data.email, data.notes, user["id"]),
         )
         conn.execute(
-            """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
-               VALUES (?, 'create', 'customer', ?, ?)""",
-            (user["id"], cur.lastrowid, f'{{ "code": "{data.code}", "name": "{data.full_name}" }}'),
+            """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+               VALUES (?, ?, 'create', 'customer', ?, ?)""",
+            (data.get("location_id"), user["id"], cur.lastrowid, f'{{"code":"{data.code}","name":"{data.full_name}"}}'),
         )
-    return {"id": cur.lastrowid, "message": "Customer created"}
+    return {"id": cur.lastrowid, "message": "Khách hàng đã được tạo"}
+
 
 @router.put("/{customer_id}")
 def update_customer(customer_id: int, data: CustomerUpdate, user: dict = Depends(require_role("MANAGER"))):
-    """Update customer. Only MANAGER+ can update."""
     with get_db() as conn:
         row = conn.execute("SELECT * FROM customers WHERE id = ?", (customer_id,)).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="Customer not found")
+            raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng")
         updates = {}
         for field in ["full_name", "phone", "email", "notes"]:
             val = getattr(data, field)
             if val is not None:
                 updates[field] = val
         if not updates:
-            return {"message": "No changes"}
+            return {"message": "Không có thay đổi"}
         updates["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         set_clause = ", ".join(f"{k} = ?" for k in updates)
         values = list(updates.values()) + [customer_id]
         conn.execute(f"UPDATE customers SET {set_clause} WHERE id = ?", values)
         conn.execute(
-            """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
-               VALUES (?, 'update', 'customer', ?, ?)""",
-            (user["id"], customer_id, str(updates)),
+            """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+               VALUES (?, ?, 'update', 'customer', ?, ?)""",
+            (row["location_id"], user["id"], customer_id, str(updates)),
         )
-    return {"message": "Customer updated"}
+    return {"message": "Khách hàng đã được cập nhật"}
+
 
 @router.post("/{customer_id}/checkin")
 def checkin_customer(customer_id: int, user: dict = Depends(get_current_user)):
-    """Record a check-in for customer."""
     with get_db() as conn:
-        row = conn.execute("SELECT id, code, full_name FROM customers WHERE id = ? AND is_active = 1", (customer_id,)).fetchone()
+        row = conn.execute(
+            "SELECT id, code, full_name, location_id FROM customers WHERE id = ? AND is_active = 1", (customer_id,)
+        ).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="Customer not found or inactive")
+            raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng hoặc đã bị vô hiệu hóa")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         conn.execute(
-            """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
-               VALUES (?, 'checkin', 'customer', ?, ?)""",
-            (user["id"], customer_id, f'{{ "code": "{row["code"]}", "name": "{row["full_name"]}", "time": "{now}" }}'),
+            """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+               VALUES (?, ?, 'checkin', 'customer', ?, ?)""",
+            (row["location_id"], user["id"], customer_id, f'{{"code":"{row["code"]}","name":"{row["full_name"]}","time":"{now}"}}'),
         )
-    return {"message": "Check-in recorded", "time": now}
+    return {"message": "Check-in đã được ghi nhận", "time": now}
 
-# ---------------------------------------------------------------------------
-# NiceGUI UI
-# ---------------------------------------------------------------------------
-def render():
-    """Render the customer management page (tiếng Việt)."""
-    role = app.storage.user.get("role", "STAFF")
 
+# ==================== NiceGUI UI ====================
+@ui.page("/customers")
+def customers_page():
+    if not app.storage.user.get("token"):
+        ui.navigate.to("/login")
+        return
+    if not get_current_location_id():
+        ui.navigate.to("/select-location")
+        return
+
+    render()
     render_navbar()
+
+
+def render():
+    role = app.storage.user.get("role", "STAFF")
+    loc_id = get_current_location_id()
+
     ui.label("Quản lý khách hàng").classes("text-2xl font-bold mb-4")
 
     search_input = ui.input("Tìm theo mã, tên, hoặc số điện thoại").props("outlined").classes("w-full mb-4")
@@ -146,12 +165,13 @@ def render():
             if search:
                 like = f"%{search}%"
                 rows = conn.execute(
-                    "SELECT id, code, full_name, phone, email, notes FROM customers WHERE is_active = 1 AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?) ORDER BY full_name",
-                    (like, like, like),
+                    "SELECT id, code, full_name, phone, email, notes FROM customers WHERE is_active = 1 AND location_id = ? AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?) ORDER BY full_name",
+                    (loc_id, like, like, like),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT id, code, full_name, phone, email, notes FROM customers WHERE is_active = 1 ORDER BY full_name"
+                    "SELECT id, code, full_name, phone, email, notes FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name",
+                    (loc_id,),
                 ).fetchall()
         result = []
         for r in rows:
@@ -161,7 +181,7 @@ def render():
         customer_table.rows = result
         customer_table.update()
 
-    # ---------- Create dialog ----------
+    # Create dialog
     with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
         ui.label("Thêm khách hàng").classes("text-xl font-bold mb-4")
         code = ui.input("Mã KH *").props("outlined").classes("w-full mb-2")
@@ -178,15 +198,20 @@ def render():
             user_id = app.storage.user.get("user_id", 1)
             with get_db() as conn:
                 existing = conn.execute(
-                    "SELECT id FROM customers WHERE code = ?", (code.value,)
+                    "SELECT id FROM customers WHERE code = ? AND location_id = ?", (code.value, loc_id)
                 ).fetchone()
                 if existing:
                     err.set_text("Mã KH đã tồn tại")
                     return
                 conn.execute(
-                    """INSERT INTO customers (code, full_name, phone, email, notes, created_by)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (code.value, name.value, phone.value, email.value, notes.value, user_id),
+                    """INSERT INTO customers (location_id, code, full_name, phone, email, notes, created_by)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (loc_id, code.value, name.value, phone.value, email.value, notes.value, user_id),
+                )
+                conn.execute(
+                    """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+                       VALUES (?, ?, 'create', 'customer', ?, ?)""",
+                    (loc_id, user_id, conn.lastrowid, f'{{"code":"{code.value}","name":"{name.value}"}}'),
                 )
             create_dialog.close()
             refresh()
@@ -194,7 +219,7 @@ def render():
 
         ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
 
-    # ---------- Edit dialog ----------
+    # Edit dialog
     with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
         ui.label("Sửa khách hàng").classes("text-xl font-bold mb-4")
         edit_id = ui.number("edit_id").props("hidden")
@@ -211,13 +236,13 @@ def render():
             user_id = app.storage.user.get("user_id", 1)
             with get_db() as conn:
                 conn.execute(
-                    "UPDATE customers SET full_name = ?, phone = ?, email = ?, notes = ?, updated_at = datetime('now') WHERE id = ?",
+                    "UPDATE customers SET full_name = ?, phone = ?, email = ?, notes = ?, updated_at = datetime('now','localtime') WHERE id = ?",
                     (e_name.value, e_phone.value, e_email.value, e_notes.value, int(edit_id.value or 0)),
                 )
                 conn.execute(
-                    """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
-                       VALUES (?, 'update', 'customer', ?, ?)""",
-                    (user_id, int(edit_id.value or 0), f'{{"name": "{e_name.value}"}}'),
+                    """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+                       VALUES (?, ?, 'update', 'customer', ?, ?)""",
+                    (loc_id, user_id, int(edit_id.value or 0), f'{{"name":"{e_name.value}"}}'),
                 )
             edit_dialog.close()
             refresh()
@@ -234,14 +259,12 @@ def render():
 
         ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
 
-    # ---------- Buttons ----------
     with ui.row().classes("gap-2 mb-4"):
         ui.button("Thêm khách hàng", on_click=create_dialog.open, icon="person_add").props("unelevated").classes("bg-green-600 text-white")
         ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
 
     search_input.on("keyup.enter", refresh)
 
-    # Render edit button in the action column
     customer_table.add_slot(
         "body-cell-action",
         """

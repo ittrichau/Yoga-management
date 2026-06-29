@@ -1,9 +1,9 @@
-"""Audit log viewer."""
+"""Audit log viewer - filtered by location."""
 from fastapi import APIRouter, Depends
 from nicegui import app, ui
 
 from database import get_db
-from auth import get_current_user, require_role, render_navbar
+from auth import get_current_user, require_role, render_navbar, get_current_location_id
 
 router = APIRouter(prefix="/api/audit", tags=["audit"])
 
@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/audit", tags=["audit"])
 def list_logs(
     entity_type: str | None = None,
     action: str | None = None,
+    location_id: int | None = None,
     limit: int = 100,
     user: dict = Depends(require_role("MANAGER")),
 ):
@@ -27,6 +28,9 @@ def list_logs(
         if action:
             where.append("al.action = ?")
             params.append(action)
+        if location_id:
+            where.append("al.location_id = ?")
+            params.append(location_id)
         where_clause = ("WHERE " + " AND ".join(where)) if where else ""
         rows = conn.execute(
             f"""SELECT al.*, u.username, u.full_name as user_full_name
@@ -50,9 +54,20 @@ ACTION_LABELS = {
 # ---------------------------------------------------------------------------
 # NiceGUI UI
 # ---------------------------------------------------------------------------
+@ui.page("/audit")
+def audit_page():
+    if not app.storage.user.get("token"):
+        ui.navigate.to("/login")
+        return
+    if not get_current_location_id():
+        ui.navigate.to("/select-location")
+        return
+    render()
+
 def render():
     """Render the audit log page."""
     role = app.storage.user.get("role", "STAFF")
+    loc_id = get_current_location_id()
     render_navbar()
     ui.label("Nhật ký kiểm toán").classes("text-2xl font-bold mb-4")
 
@@ -83,15 +98,15 @@ def render():
 
     def refresh():
         with get_db() as conn:
-            where = []
-            params = []
+            where = ["al.location_id = ?"]
+            params = [loc_id]
             if entity_filter.value:
                 where.append("al.entity_type = ?")
                 params.append(entity_filter.value)
             if action_filter.value:
                 where.append("al.action = ?")
                 params.append(action_filter.value)
-            where_clause = ("WHERE " + " AND ".join(where)) if where else ""
+            where_clause = "WHERE " + " AND ".join(where)
             rows = conn.execute(
                 f"""SELECT al.*, u.username, u.full_name as user_full_name
                     FROM audit_logs al

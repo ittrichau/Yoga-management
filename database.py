@@ -56,14 +56,7 @@ class _PgCursor:
 # ---------------------------------------------------------------------------
 @contextmanager
 def get_db():
-    """Return a db connection/cursor compatible with both SQLite and PostgreSQL.
-
-    Always returns an object with:
-      - execute(sql, params) -> self
-      - fetchone() -> dict | None
-      - fetchall() -> list[dict]
-      - lastrowid -> int | None
-    """
+    """Return a db connection/cursor compatible with both SQLite and PostgreSQL."""
     if USE_PG:
         import psycopg2
         conn = psycopg2.connect(DATABASE_URL)
@@ -82,8 +75,6 @@ def get_db():
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
-        # Enable returning dict for sqlite3.Row via fetch wrappers
-        # sqlite3.Row is already dict-like, but we wrap for consistency
         class _SQLiteWrapper:
             def __init__(self, conn):
                 self._conn = conn
@@ -114,7 +105,7 @@ def get_db():
 
 
 # ---------------------------------------------------------------------------
-# Schema (compatible with both SQLite and PostgreSQL via get_db wrapper)
+# Schema
 # ---------------------------------------------------------------------------
 def init_db():
     """Create all tables if they don't exist."""
@@ -128,6 +119,14 @@ def init_db():
 def _init_pg_schema(db):
     """PostgreSQL-compatible schema."""
     db.execute("""
+    CREATE TABLE IF NOT EXISTS locations (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        address TEXT DEFAULT '',
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+    )""")
+    db.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username VARCHAR(255) UNIQUE NOT NULL,
@@ -139,9 +138,16 @@ def _init_pg_schema(db):
         updated_at TEXT
     )""")
     db.execute("""
+    CREATE TABLE IF NOT EXISTS user_locations (
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        location_id INTEGER NOT NULL REFERENCES locations(id),
+        PRIMARY KEY (user_id, location_id)
+    )""")
+    db.execute("""
     CREATE TABLE IF NOT EXISTS customers (
         id SERIAL PRIMARY KEY,
-        code VARCHAR(50) UNIQUE NOT NULL,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
+        code VARCHAR(50) NOT NULL,
         full_name VARCHAR(255) NOT NULL,
         phone VARCHAR(50) DEFAULT '',
         email VARCHAR(255) DEFAULT '',
@@ -149,12 +155,14 @@ def _init_pg_schema(db):
         is_active INTEGER NOT NULL DEFAULT 1,
         created_by INTEGER REFERENCES users(id),
         created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
-        updated_at TEXT
+        updated_at TEXT,
+        UNIQUE (location_id, code)
     )""")
     db.execute("""
     CREATE TABLE IF NOT EXISTS drinks (
         id SERIAL PRIMARY KEY,
-        name VARCHAR(255) UNIQUE NOT NULL,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
+        name VARCHAR(255) NOT NULL,
         price_per_serving REAL NOT NULL DEFAULT 0,
         is_active INTEGER NOT NULL DEFAULT 1,
         created_by INTEGER REFERENCES users(id),
@@ -164,7 +172,8 @@ def _init_pg_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS ingredients (
         id SERIAL PRIMARY KEY,
-        name VARCHAR(255) UNIQUE NOT NULL,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
+        name VARCHAR(255) NOT NULL,
         unit VARCHAR(50) NOT NULL DEFAULT 'muỗng' CHECK(unit IN ('muỗng','nắp','gói')),
         current_stock REAL NOT NULL DEFAULT 0,
         min_stock REAL NOT NULL DEFAULT 0,
@@ -183,6 +192,7 @@ def _init_pg_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS packages (
         id SERIAL PRIMARY KEY,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
         customer_id INTEGER NOT NULL REFERENCES customers(id),
         name VARCHAR(255) DEFAULT '',
         total_amount REAL NOT NULL DEFAULT 0,
@@ -202,6 +212,7 @@ def _init_pg_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS transactions (
         id SERIAL PRIMARY KEY,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
         customer_id INTEGER NOT NULL REFERENCES customers(id),
         drink_id INTEGER NOT NULL REFERENCES drinks(id),
         package_item_id INTEGER REFERENCES package_items(id),
@@ -214,6 +225,7 @@ def _init_pg_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS inventory_adjustments (
         id SERIAL PRIMARY KEY,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
         ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),
         adjustment_type VARCHAR(50) NOT NULL CHECK(adjustment_type IN ('add','remove','count_correct')),
         quantity REAL NOT NULL,
@@ -224,6 +236,7 @@ def _init_pg_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
+        location_id INTEGER REFERENCES locations(id),
         user_id INTEGER REFERENCES users(id),
         action VARCHAR(255) NOT NULL,
         entity_type VARCHAR(100) NOT NULL,
@@ -237,6 +250,14 @@ def _init_pg_schema(db):
 def _init_sqlite_schema(db):
     """SQLite-compatible schema."""
     db.execute("""
+    CREATE TABLE IF NOT EXISTS locations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        address TEXT DEFAULT '',
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )""")
+    db.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -248,9 +269,16 @@ def _init_sqlite_schema(db):
         updated_at TEXT
     )""")
     db.execute("""
+    CREATE TABLE IF NOT EXISTS user_locations (
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        location_id INTEGER NOT NULL REFERENCES locations(id),
+        PRIMARY KEY (user_id, location_id)
+    )""")
+    db.execute("""
     CREATE TABLE IF NOT EXISTS customers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        code TEXT UNIQUE NOT NULL,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
+        code TEXT NOT NULL,
         full_name TEXT NOT NULL,
         phone TEXT DEFAULT '',
         email TEXT DEFAULT '',
@@ -258,12 +286,14 @@ def _init_sqlite_schema(db):
         is_active INTEGER NOT NULL DEFAULT 1,
         created_by INTEGER REFERENCES users(id),
         created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-        updated_at TEXT
+        updated_at TEXT,
+        UNIQUE (location_id, code)
     )""")
     db.execute("""
     CREATE TABLE IF NOT EXISTS drinks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
+        name TEXT NOT NULL,
         price_per_serving REAL NOT NULL DEFAULT 0,
         is_active INTEGER NOT NULL DEFAULT 1,
         created_by INTEGER REFERENCES users(id),
@@ -273,7 +303,8 @@ def _init_sqlite_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS ingredients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
+        name TEXT NOT NULL,
         unit TEXT NOT NULL DEFAULT 'muỗng' CHECK(unit IN ('muỗng','nắp','gói')),
         current_stock REAL NOT NULL DEFAULT 0,
         min_stock REAL NOT NULL DEFAULT 0,
@@ -292,6 +323,7 @@ def _init_sqlite_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS packages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
         customer_id INTEGER NOT NULL REFERENCES customers(id),
         name TEXT DEFAULT '',
         total_amount REAL NOT NULL DEFAULT 0,
@@ -311,6 +343,7 @@ def _init_sqlite_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
         customer_id INTEGER NOT NULL REFERENCES customers(id),
         drink_id INTEGER NOT NULL REFERENCES drinks(id),
         package_item_id INTEGER REFERENCES package_items(id),
@@ -323,6 +356,7 @@ def _init_sqlite_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS inventory_adjustments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        location_id INTEGER NOT NULL REFERENCES locations(id),
         ingredient_id INTEGER NOT NULL REFERENCES ingredients(id),
         adjustment_type TEXT NOT NULL CHECK(adjustment_type IN ('add','remove','count_correct')),
         quantity REAL NOT NULL,
@@ -333,6 +367,7 @@ def _init_sqlite_schema(db):
     db.execute("""
     CREATE TABLE IF NOT EXISTS audit_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        location_id INTEGER REFERENCES locations(id),
         user_id INTEGER REFERENCES users(id),
         action TEXT NOT NULL,
         entity_type TEXT NOT NULL,
@@ -344,50 +379,110 @@ def _init_sqlite_schema(db):
 
 
 def seed_defaults():
-    """Seed default admin user and sample data."""
+    """Seed default locations, admin user, and sample data."""
     import bcrypt as _bcrypt
 
     with get_db() as db:
+        # Seed locations
+        existing = db.execute("SELECT id FROM locations WHERE id = 1").fetchone()
+        if existing is None:
+            db.execute("INSERT INTO locations (id, name, address) VALUES (1, 'Cơ sở 1', '')")
+            db.execute("INSERT INTO locations (id, name, address) VALUES (2, 'Cơ sở 2', '')")
+
         # Default admin
         existing = db.execute("SELECT id FROM users WHERE username = ?", ("admin",)).fetchone()
+        admin_id = None
         if existing is None:
             hashed = _bcrypt.hashpw(b"admin123", _bcrypt.gensalt()).decode("utf-8")
             db.execute(
                 "INSERT INTO users (username, hashed_password, full_name, role) VALUES (?, ?, ?, ?)",
                 ("admin", hashed, "Admin", "OWNER"),
             )
+            admin_id = db.lastrowid
+        else:
+            admin_id = existing["id"]
+
+        # Assign admin to both locations
+        for loc_id in [1, 2]:
+            ul = db.execute(
+                "SELECT user_id FROM user_locations WHERE user_id = ? AND location_id = ?",
+                (admin_id, loc_id),
+            ).fetchone()
+            if ul is None:
+                db.execute(
+                    "INSERT INTO user_locations (user_id, location_id) VALUES (?, ?)",
+                    (admin_id, loc_id),
+                )
 
         # Sample staff user
         existing = db.execute("SELECT id FROM users WHERE username = ?", ("giangvien1",)).fetchone()
+        staff_id = None
         if existing is None:
             hashed = _bcrypt.hashpw(b"123456", _bcrypt.gensalt()).decode("utf-8")
             db.execute(
                 "INSERT INTO users (username, hashed_password, full_name, role) VALUES (?, ?, ?, ?)",
                 ("giangvien1", hashed, "Giáo viên 1", "STAFF"),
             )
+            staff_id = db.lastrowid
+        else:
+            staff_id = existing["id"]
 
-        # Sample customers
-        existing = db.execute("SELECT id FROM customers WHERE code = ?", ("HV001",)).fetchone()
-        if existing is None:
-            db.execute("INSERT INTO customers (code, full_name, phone) VALUES (?, ?, ?)", ("HV001", "Nguyễn Thị Hương", "0901000001"))
-            db.execute("INSERT INTO customers (code, full_name, phone) VALUES (?, ?, ?)", ("HV002", "Trần Minh Anh", "0901000002"))
-            db.execute("INSERT INTO customers (code, full_name, phone) VALUES (?, ?, ?)", ("HV003", "Lê Hoàng Yến", "0901000003"))
+        # Assign staff to both locations (luân phiên sáng/chiều)
+        for loc_id in [1, 2]:
+            ul = db.execute(
+                "SELECT user_id FROM user_locations WHERE user_id = ? AND location_id = ?",
+                (staff_id, loc_id),
+            ).fetchone()
+            if ul is None:
+                db.execute(
+                    "INSERT INTO user_locations (user_id, location_id) VALUES (?, ?)",
+                    (staff_id, loc_id),
+                )
 
-        # Sample ingredients
-        existing = db.execute("SELECT id FROM ingredients WHERE name = ?", ("Bột Protein",)).fetchone()
-        if existing is None:
-            db.execute("INSERT INTO ingredients (name, unit, current_stock, min_stock, created_by) VALUES (?, ?, ?, ?, ?)", ("Bột Protein", "muỗng", 300, 50, 1))
-            db.execute("INSERT INTO ingredients (name, unit, current_stock, min_stock, created_by) VALUES (?, ?, ?, ?, ?)", ("Bột Matcha", "muỗng", 200, 30, 1))
-            db.execute("INSERT INTO ingredients (name, unit, current_stock, min_stock, created_by) VALUES (?, ?, ?, ?, ?)", ("Bột Collagen", "muỗng", 150, 20, 1))
+        # Sample customers for each location
+        for loc_id in [1, 2]:
+            existing = db.execute(
+                "SELECT id FROM customers WHERE location_id = ? AND code = ?",
+                (loc_id, f"HV0{loc_id}01"),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO customers (location_id, code, full_name, phone) VALUES (?, ?, ?, ?)",
+                    (loc_id, f"HV0{loc_id}01", f"Khách hàng A (CS{loc_id})", "0901000001"),
+                )
+                db.execute(
+                    "INSERT INTO customers (location_id, code, full_name, phone) VALUES (?, ?, ?, ?)",
+                    (loc_id, f"HV0{loc_id}02", f"Khách hàng B (CS{loc_id})", "0901000002"),
+                )
 
-        # Sample drinks
-        existing = db.execute("SELECT id FROM drinks WHERE name = ?", ("Protein Shake",)).fetchone()
-        if existing is None:
-            db.execute("INSERT INTO drinks (name, price_per_serving, created_by) VALUES (?, ?, ?)", ("Protein Shake", 25000, 1))
-            db.execute("INSERT INTO drinks (name, price_per_serving, created_by) VALUES (?, ?, ?)", ("Matcha Latte", 20000, 1))
-            db.execute("INSERT INTO drinks (name, price_per_serving, created_by) VALUES (?, ?, ?)", ("Collagen Drink", 30000, 1))
+        # Sample ingredients for each location
+        for loc_id in [1, 2]:
+            existing = db.execute(
+                "SELECT id FROM ingredients WHERE location_id = ? AND name = ?",
+                (loc_id, "Bột Protein"),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO ingredients (location_id, name, unit, current_stock, min_stock, created_by) VALUES (?, ?, ?, ?, ?, ?)",
+                    (loc_id, "Bột Protein", "muỗng", 300, 50, admin_id),
+                )
+                db.execute(
+                    "INSERT INTO ingredients (location_id, name, unit, current_stock, min_stock, created_by) VALUES (?, ?, ?, ?, ?, ?)",
+                    (loc_id, "Bột Matcha", "muỗng", 200, 30, admin_id),
+                )
 
-            # Sample recipes (2 muỗng mỗi ly)
-            db.execute("INSERT INTO drink_recipes (drink_id, ingredient_id, quantity_per_serving) VALUES (?, ?, ?)", (1, 1, 2.0))
-            db.execute("INSERT INTO drink_recipes (drink_id, ingredient_id, quantity_per_serving) VALUES (?, ?, ?)", (2, 2, 2.0))
-            db.execute("INSERT INTO drink_recipes (drink_id, ingredient_id, quantity_per_serving) VALUES (?, ?, ?)", (3, 3, 2.0))
+        # Sample drinks for each location (same name, different location)
+        for loc_id in [1, 2]:
+            existing = db.execute(
+                "SELECT id FROM drinks WHERE location_id = ? AND name = ?",
+                (loc_id, "Protein Shake"),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO drinks (location_id, name, price_per_serving, created_by) VALUES (?, ?, ?, ?)",
+                    (loc_id, "Protein Shake", 25000, admin_id),
+                )
+                db.execute(
+                    "INSERT INTO drinks (location_id, name, price_per_serving, created_by) VALUES (?, ?, ?, ?)",
+                    (loc_id, "Matcha Latte", 20000, admin_id),
+                )
