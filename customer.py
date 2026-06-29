@@ -122,7 +122,7 @@ def checkin_customer(customer_id: int, user: dict = Depends(get_current_user)):
 # NiceGUI UI
 # ---------------------------------------------------------------------------
 def render():
-    """Render the customer management page (dịch sang tiếng Việt)."""
+    """Render the customer management page (tiếng Việt)."""
     role = app.storage.user.get("role", "STAFF")
 
     render_navbar()
@@ -134,6 +134,7 @@ def render():
             {"name": "code", "label": "Mã KH", "field": "code"},
             {"name": "name", "label": "Họ và tên", "field": "full_name"},
             {"name": "phone", "label": "Số điện thoại", "field": "phone"},
+            {"name": "action", "label": "Thao tác", "field": "action"},
         ],
         rows=[],
         row_key="id",
@@ -145,19 +146,22 @@ def render():
             if search:
                 like = f"%{search}%"
                 rows = conn.execute(
-                    "SELECT id, code, full_name, phone FROM customers WHERE is_active = 1 AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?) ORDER BY full_name",
+                    "SELECT id, code, full_name, phone, email, notes FROM customers WHERE is_active = 1 AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?) ORDER BY full_name",
                     (like, like, like),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT id, code, full_name, phone FROM customers WHERE is_active = 1 ORDER BY full_name"
+                    "SELECT id, code, full_name, phone, email, notes FROM customers WHERE is_active = 1 ORDER BY full_name"
                 ).fetchall()
-        customer_table.rows = [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["action"] = d["id"]
+            result.append(d)
+        customer_table.rows = result
         customer_table.update()
 
-    search_input.on("keyup.enter", refresh)
-    ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined").classes("mb-4")
-
+    # ---------- Create dialog ----------
     with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
         ui.label("Thêm khách hàng").classes("text-xl font-bold mb-4")
         code = ui.input("Mã KH *").props("outlined").classes("w-full mb-2")
@@ -171,7 +175,7 @@ def render():
             if not code.value or not name.value:
                 err.set_text("Vui lòng nhập mã KH và họ tên")
                 return
-            token = app.storage.user.get("token", "")
+            user_id = app.storage.user.get("user_id", 1)
             with get_db() as conn:
                 existing = conn.execute(
                     "SELECT id FROM customers WHERE code = ?", (code.value,)
@@ -179,18 +183,75 @@ def render():
                 if existing:
                     err.set_text("Mã KH đã tồn tại")
                     return
-                # We need user_id - get from token saved in storage
-                user_id = app.storage.user.get("user_id", 1)
-                cur = conn.execute(
+                conn.execute(
                     """INSERT INTO customers (code, full_name, phone, email, notes, created_by)
                        VALUES (?, ?, ?, ?, ?, ?)""",
                     (code.value, name.value, phone.value, email.value, notes.value, user_id),
                 )
             create_dialog.close()
             refresh()
+            ui.notify("Đã thêm khách hàng", type="positive")
 
         ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
 
-    ui.button("Thêm khách hàng", on_click=create_dialog.open, icon="person_add").props("unelevated").classes("bg-green-600 text-white mb-4")
+    # ---------- Edit dialog ----------
+    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
+        ui.label("Sửa khách hàng").classes("text-xl font-bold mb-4")
+        edit_id = ui.number("edit_id").props("hidden")
+        e_name = ui.input("Họ và tên *").props("outlined").classes("w-full mb-2")
+        e_phone = ui.input("Số điện thoại").props("outlined").classes("w-full mb-2")
+        e_email = ui.input("Email").props("outlined").classes("w-full mb-2")
+        e_notes = ui.textarea("Ghi chú").props("outlined").classes("w-full mb-4")
+        edit_err = ui.label().classes("text-red-500 text-sm")
+
+        def handle_edit():
+            if not e_name.value:
+                edit_err.set_text("Vui lòng nhập họ tên")
+                return
+            user_id = app.storage.user.get("user_id", 1)
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE customers SET full_name = ?, phone = ?, email = ?, notes = ?, updated_at = datetime('now') WHERE id = ?",
+                    (e_name.value, e_phone.value, e_email.value, e_notes.value, int(edit_id.value or 0)),
+                )
+                conn.execute(
+                    """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
+                       VALUES (?, 'update', 'customer', ?, ?)""",
+                    (user_id, int(edit_id.value or 0), f'{{"name": "{e_name.value}"}}'),
+                )
+            edit_dialog.close()
+            refresh()
+            ui.notify("Đã cập nhật khách hàng", type="positive")
+
+        def open_edit(customer: dict):
+            edit_id.value = customer["id"]
+            e_name.value = customer.get("full_name", "")
+            e_phone.value = customer.get("phone", "")
+            e_email.value = customer.get("email", "")
+            e_notes.value = customer.get("notes", "")
+            edit_err.set_text("")
+            edit_dialog.open()
+
+        ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
+
+    # ---------- Buttons ----------
+    with ui.row().classes("gap-2 mb-4"):
+        ui.button("Thêm khách hàng", on_click=create_dialog.open, icon="person_add").props("unelevated").classes("bg-green-600 text-white")
+        ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
+
+    search_input.on("keyup.enter", refresh)
+
+    # Render edit button in the action column
+    customer_table.add_slot(
+        "body-cell-action",
+        """
+        <q-td :props="props">
+            <q-btn flat color="primary" icon="edit" @click="$parent.$emit('edit_customer', props.row)">
+                <q-tooltip>Sửa</q-tooltip>
+            </q-btn>
+        </q-td>
+        """,
+    )
+    customer_table.on("edit_customer", lambda e: open_edit(e.args))
 
     refresh()

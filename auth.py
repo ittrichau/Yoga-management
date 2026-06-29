@@ -278,6 +278,7 @@ def users_page():
             {"name": "full_name", "label": "Họ tên", "field": "full_name"},
             {"name": "role", "label": "Vai trò", "field": "role"},
             {"name": "status", "label": "Trạng thái", "field": "status"},
+            {"name": "action", "label": "Thao tác", "field": "action"},
         ],
         rows=[],
         row_key="id",
@@ -288,18 +289,21 @@ def users_page():
             rows = conn.execute(
                 "SELECT id, username, full_name, role, is_active FROM users ORDER BY role, username"
             ).fetchall()
-        user_table.rows = [
-            {
+        result = []
+        for r in rows:
+            d = {
                 "id": r["id"],
                 "username": r["username"],
                 "full_name": r["full_name"],
                 "role": r["role"],
                 "status": "Hoạt động" if r["is_active"] else "Vô hiệu",
             }
-            for r in rows
-        ]
+            d["action"] = d["id"]
+            result.append(d)
+        user_table.rows = result
         user_table.update()
 
+    # ---------- Create dialog ----------
     with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
         ui.label("Người dùng mới").classes("text-xl font-bold mb-4")
         u_username = ui.input("Tên đăng nhập *").props("outlined").classes("w-full mb-2")
@@ -312,7 +316,7 @@ def users_page():
             if not u_username.value or not u_password.value:
                 err.set_text("Vui lòng nhập tên đăng nhập và mật khẩu")
                 return
-            user_id = app.storage.user.get("user_id", 1)
+            current_user_id = app.storage.user.get("user_id", 1)
             with get_db() as conn:
                 existing = conn.execute("SELECT id FROM users WHERE username = ?", (u_username.value,)).fetchone()
                 if existing:
@@ -325,10 +329,69 @@ def users_page():
                 )
             create_dialog.close()
             refresh()
-            ui.notify(f"User {u_username.value} created", type="positive")
+            ui.notify(f"Đã tạo người dùng {u_username.value}", type="positive")
 
         ui.button("Lưu", on_click=handle_save, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
 
-    ui.button("Người dùng mới", on_click=create_dialog.open, icon="person_add").props("unelevated").classes("bg-green-600 text-white mb-4")
-    ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined").classes("mb-4")
+    # ---------- Edit dialog ----------
+    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
+        ui.label("Sửa người dùng").classes("text-xl font-bold mb-4")
+        e_user_id = ui.number("e_user_id").props("hidden")
+        e_username_label = ui.label().classes("text-sm text-gray-500 mb-4")
+        e_fullname = ui.input("Họ tên").props("outlined").classes("w-full mb-2")
+        e_role = ui.select(["STAFF", "MANAGER", "OWNER"], label="Vai trò *", value="STAFF").props("outlined").classes("w-full mb-2")
+        e_is_active = ui.checkbox("Đang hoạt động", value=True).classes("mb-2")
+        e_password = ui.input("Mật khẩu mới (để trống nếu không đổi)", password=True, password_toggle_button=True).props("outlined").classes("w-full mb-4")
+        edit_err = ui.label().classes("text-red-500 text-sm")
+
+        def handle_edit():
+            current_user_id = app.storage.user.get("user_id", 1)
+            uid = int(e_user_id.value or 0)
+            updates = {}
+            updates["full_name"] = e_fullname.value
+            updates["role"] = e_role.value
+            updates["is_active"] = 1 if e_is_active.value else 0
+            if e_password.value:
+                updates["hashed_password"] = hash_password(e_password.value)
+            with get_db() as conn:
+                set_clause = ", ".join(f"{k} = ?" for k in updates)
+                values = list(updates.values()) + [uid]
+                conn.execute(f"UPDATE users SET {set_clause}, updated_at = datetime('now') WHERE id = ?", values)
+                conn.execute(
+                    """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
+                       VALUES (?, 'update', 'user', ?, ?)""",
+                    (current_user_id, uid, str({k: v for k, v in updates.items() if k != "hashed_password"})),
+                )
+            edit_dialog.close()
+            refresh()
+            ui.notify("Đã cập nhật người dùng", type="positive")
+
+        def open_edit(user_data: dict):
+            e_user_id.value = user_data["id"]
+            e_username_label.set_text(f"Tên đăng nhập: {user_data.get('username', '')}")
+            e_fullname.value = user_data.get("full_name", "")
+            e_role.value = user_data.get("role", "STAFF")
+            e_is_active.value = user_data.get("status") == "Hoạt động"
+            e_password.value = ""
+            edit_err.set_text("")
+            edit_dialog.open()
+
+        ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
+
+    with ui.row().classes("gap-2 mb-4"):
+        ui.button("Người dùng mới", on_click=create_dialog.open, icon="person_add").props("unelevated").classes("bg-green-600 text-white")
+
+    # Render edit button in the action column
+    user_table.add_slot(
+        "body-cell-action",
+        """
+        <q-td :props="props">
+            <q-btn flat color="primary" icon="edit" @click="$parent.$emit('edit_user', props.row)">
+                <q-tooltip>Sửa</q-tooltip>
+            </q-btn>
+        </q-td>
+        """,
+    )
+    user_table.on("edit_user", lambda e: open_edit(e.args))
+
     refresh()

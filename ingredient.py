@@ -253,6 +253,7 @@ def render():
             {"name": "stock", "label": "Tồn kho", "field": "stock"},
             {"name": "min", "label": "Tối thiểu", "field": "min"},
             {"name": "status", "label": "Trạng thái", "field": "status"},
+            {"name": "action", "label": "Thao tác", "field": "action"},
         ],
         rows=[],
         row_key="id",
@@ -284,16 +285,16 @@ def render():
                 "name": r["name"],
                 "unit": r["unit"],
                 "stock": f"{r['current_stock']:.1f}",
+                "stock_raw": r["current_stock"],
                 "min": f"{r['min_stock']:.1f}",
+                "min_raw": r["min_stock"],
                 "status": status,
+                "action": r["id"],
             })
         ingredient_table.rows = result
         ingredient_table.update()
 
-    search_input.on("keyup.enter", refresh)
-    ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined").classes("mb-4")
-
-    # Create dialog (MANAGER+)
+    # ---------- Create dialog (MANAGER+) ----------
     if role in ("MANAGER", "OWNER"):
         with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
             ui.label("Thêm nguyên liệu").classes("text-xl font-bold mb-4")
@@ -323,9 +324,52 @@ def render():
 
             ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
 
-        ui.button("Thêm nguyên liệu", on_click=create_dialog.open, icon="add").props("unelevated").classes("bg-green-600 text-white mb-4")
+        # ---------- Edit dialog ----------
+        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
+            ui.label("Sửa nguyên liệu").classes("text-xl font-bold mb-4")
+            e_ing_id = ui.number("e_ing_id").props("hidden")
+            e_name = ui.input("Tên nguyên liệu *").props("outlined").classes("w-full mb-2")
+            e_unit = ui.select(["muỗng", "nắp", "gói"], label="Đơn vị *").props("outlined").classes("w-full mb-2")
+            e_min = ui.number("Tồn kho tối thiểu", value=0).props("outlined").classes("w-full mb-4")
+            edit_err = ui.label().classes("text-red-500 text-sm")
 
-    # Inventory adjust dialog (OWNER only)
+            def handle_edit():
+                if not e_name.value:
+                    edit_err.set_text("Vui lòng nhập tên nguyên liệu")
+                    return
+                user_id = app.storage.user.get("user_id", 1)
+                with get_db() as conn:
+                    existing = conn.execute(
+                        "SELECT id FROM ingredients WHERE name = ? AND id != ?",
+                        (e_name.value, int(e_ing_id.value or 0)),
+                    ).fetchone()
+                    if existing:
+                        edit_err.set_text("Tên nguyên liệu đã tồn tại")
+                        return
+                    conn.execute(
+                        "UPDATE ingredients SET name = ?, unit = ?, min_stock = ?, updated_at = datetime('now') WHERE id = ?",
+                        (e_name.value, e_unit.value, e_min.value or 0, int(e_ing_id.value or 0)),
+                    )
+                    conn.execute(
+                        """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
+                           VALUES (?, 'update', 'ingredient', ?, ?)""",
+                        (user_id, int(e_ing_id.value or 0), f'{{"name": "{e_name.value}", "unit": "{e_unit.value}", "min_stock": {e_min.value or 0}}}'),
+                    )
+                edit_dialog.close()
+                refresh()
+                ui.notify("Đã cập nhật nguyên liệu", type="positive")
+
+            def open_edit(ing: dict):
+                e_ing_id.value = ing["id"]
+                e_name.value = ing.get("name", "")
+                e_unit.value = ing.get("unit", "muỗng")
+                e_min.value = ing.get("min_raw", 0)
+                edit_err.set_text("")
+                edit_dialog.open()
+
+            ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
+
+    # ---------- Inventory adjust dialog (OWNER only) ----------
     if role == "OWNER":
         with ui.dialog() as adjust_dialog, ui.card().classes("p-6 w-96"):
             ui.label("Điều chỉnh tồn kho").classes("text-xl font-bold mb-4")
@@ -374,9 +418,17 @@ def render():
 
             ui.button("Lưu", on_click=handle_adjust, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
 
-        ui.button("Điều chỉnh tồn kho", on_click=adjust_dialog.open, icon="inventory").props("unelevated").classes("bg-orange-600 text-white mb-4")
+    # ---------- Buttons ----------
+    with ui.row().classes("gap-2 mb-4"):
+        if role in ("MANAGER", "OWNER"):
+            ui.button("Thêm nguyên liệu", on_click=create_dialog.open, icon="add").props("unelevated").classes("bg-green-600 text-white")
+        if role == "OWNER":
+            ui.button("Điều chỉnh tồn kho", on_click=adjust_dialog.open, icon="inventory").props("unelevated").classes("bg-orange-600 text-white")
+        ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
 
-    # Adjustment history dialog
+    search_input.on("keyup.enter", refresh)
+
+    # ---------- Adjustment history dialog ----------
     with ui.dialog() as history_dialog, ui.card().classes("p-6 w-full max-w-2xl"):
         ui.label("Lịch sử điều chỉnh").classes("text-xl font-bold mb-4")
         history_table = ui.table(
@@ -418,5 +470,19 @@ def render():
             history_dialog.open()
 
     ui.button("Lịch sử điều chỉnh", on_click=show_history, icon="history").props("outlined").classes("mb-4")
+
+    # Render action buttons (MANAGER+ sees edit button)
+    if role in ("MANAGER", "OWNER"):
+        ingredient_table.add_slot(
+            "body-cell-action",
+            """
+            <q-td :props="props">
+                <q-btn flat dense size="sm" color="warning" icon="edit" @click="$parent.$emit('edit_ingredient', props.row)">
+                    <q-tooltip>Sửa</q-tooltip>
+                </q-btn>
+            </q-td>
+            """,
+        )
+        ingredient_table.on("edit_ingredient", lambda e: open_edit(e.args))
 
     refresh()

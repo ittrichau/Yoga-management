@@ -173,61 +173,13 @@ def render():
         columns=[
             {"name": "name", "label": "Tên đồ uống", "field": "name"},
             {"name": "price", "label": "Giá / ly", "field": "price"},
+            {"name": "action", "label": "Thao tác", "field": "action"},
         ],
         rows=[],
         row_key="id",
     ).classes("w-full overflow-x-auto")
 
-    def refresh():
-        with get_db() as conn:
-            search = search_input.value
-            if search:
-                like = f"%{search}%"
-                rows = conn.execute(
-                    "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND name LIKE ? ORDER BY name",
-                    (like,),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 ORDER BY name"
-                ).fetchall()
-        drink_table.rows = [{"id": r["id"], "name": r["name"], "price": f"{r['price_per_serving']:,.0f}đ"} for r in rows]
-        drink_table.update()
-
-    search_input.on("keyup.enter", refresh)
-    ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined").classes("mb-4")
-
-    # Create dialog
-    if role in ("MANAGER", "OWNER"):
-        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
-            ui.label("Thêm đồ uống").classes("text-xl font-bold mb-4")
-            d_name = ui.input("Tên đồ uống *").props("outlined").classes("w-full mb-2")
-            d_price = ui.number("Giá / ly (VNĐ)", value=0).props("outlined").classes("w-full mb-4")
-            err = ui.label().classes("text-red-500 text-sm")
-
-            def handle_create():
-                if not d_name.value:
-                    err.set_text("Vui lòng nhập tên đồ uống")
-                    return
-                user_id = app.storage.user.get("user_id", 1)
-                with get_db() as conn:
-                    existing = conn.execute("SELECT id FROM drinks WHERE name = ?", (d_name.value,)).fetchone()
-                    if existing:
-                        err.set_text("Tên đồ uống đã tồn tại")
-                        return
-                    conn.execute(
-                        "INSERT INTO drinks (name, price_per_serving, created_by) VALUES (?, ?, ?)",
-                        (d_name.value, d_price.value or 0, user_id),
-                    )
-                create_dialog.close()
-                refresh()
-                ui.notify(f"Đã thêm đồ uống {d_name.value}", type="positive")
-
-            ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
-
-        ui.button("Thêm đồ uống", on_click=create_dialog.open, icon="add").props("unelevated").classes("bg-green-600 text-white mb-4")
-
-    # Recipe dialog
+    # ---------- Recipe dialog ----------
     with ui.dialog() as recipe_dialog, ui.card().classes("p-6 w-full max-w-lg"):
         ui.label("Công thức pha chế").classes("text-xl font-bold mb-4")
         recipe_drink_id = ui.label().classes("text-sm text-gray-500 mb-2")
@@ -269,10 +221,12 @@ def render():
                     with get_db() as conn:
                         conn.execute("DELETE FROM drink_recipes WHERE drink_id = ?", (drink_id_val,))
                         for item in recipe_rows:
-                            if item.get("ingredient_id") and item.get("quantity_per_serving"):
+                            ing_id = item["ingredient_select"].value if "ingredient_select" in item else item.get("ingredient_id")
+                            qty = item["quantity"].value if "quantity" in item else item.get("quantity_per_serving")
+                            if ing_id and qty:
                                 conn.execute(
                                     "INSERT INTO drink_recipes (drink_id, ingredient_id, quantity_per_serving) VALUES (?, ?, ?)",
-                                    (drink_id_val, item["ingredient_id"], item["quantity_per_serving"]),
+                                    (drink_id_val, ing_id, qty),
                                 )
                     edit_recipe_dialog.close()
                     show_recipe(drink_id_val, getattr(edit_recipe_dialog, "_drink_name", ""))
@@ -313,62 +267,159 @@ def render():
                             with ui.row().classes("w-full items-center gap-2 mb-2"):
                                 ing_select = ui.select(ing_options, label="Nguyên liệu", value=rec["ingredient_id"]).props("outlined").classes("flex-1")
                                 qty = ui.number("Số lượng / ly", value=rec["quantity_per_serving"]).props("outlined").classes("w-32")
-                        recipe_rows.append({"ingredient_id": rec["ingredient_id"], "quantity_per_serving": rec["quantity_per_serving"],
-                                            "ingredient_select": ing_select, "quantity": qty})
+                        recipe_rows.append({"ingredient_select": ing_select, "quantity": qty})
                     edit_recipe_dialog.open()
 
                 ui.button("Thêm nguyên liệu", on_click=add_recipe_row, icon="add").props("outlined").classes("mb-2")
                 ui.button("Lưu công thức", on_click=save_recipe, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
 
-        # Add action buttons to each row
-        def make_actions(drink_id: int, drink_name: str):
-            with ui.row().classes("gap-2"):
-                ui.button("Xem CT", on_click=lambda: show_recipe(drink_id, drink_name), icon="visibility").props("flat dense size=sm")
-                if role in ("MANAGER", "OWNER"):
-                    ui.button("Sửa CT", on_click=lambda: show_edit_recipe(drink_id, drink_name), icon="edit").props("flat dense size=sm")
+    # ---------- Create dialog ----------
+    if role in ("MANAGER", "OWNER"):
+        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
+            ui.label("Thêm đồ uống").classes("text-xl font-bold mb-4")
+            d_name = ui.input("Tên đồ uống *").props("outlined").classes("w-full mb-2")
+            d_price = ui.number("Giá / ly (VNĐ)", value=0).props("outlined").classes("w-full mb-4")
+            err = ui.label().classes("text-red-500 text-sm")
 
-        # Note: for simplicity, recipe editing is available via dialog triggered from refresh
-        # We'll add a simple column for actions
-        def refresh_with_actions():
-            with get_db() as conn:
-                search = search_input.value
-                if search:
-                    like = f"%{search}%"
-                    rows = conn.execute(
-                        "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND name LIKE ? ORDER BY name",
-                        (like,),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 ORDER BY name"
-                    ).fetchall()
-            # We can't easily add action column to NiceGUI table, so we'll keep it simple
-            drink_table.rows = [{"id": r["id"], "name": r["name"], "price": f"{r['price_per_serving']:,.0f}đ"} for r in rows]
-            # Also update a select for recipe viewing
-            drink_options.clear()
-            drink_options.update({r["id"]: r["name"] for r in rows})
-            drink_table.update()
+            def handle_create():
+                if not d_name.value:
+                    err.set_text("Vui lòng nhập tên đồ uống")
+                    return
+                user_id = app.storage.user.get("user_id", 1)
+                with get_db() as conn:
+                    existing = conn.execute("SELECT id FROM drinks WHERE name = ?", (d_name.value,)).fetchone()
+                    if existing:
+                        err.set_text("Tên đồ uống đã tồn tại")
+                        return
+                    conn.execute(
+                        "INSERT INTO drinks (name, price_per_serving, created_by) VALUES (?, ?, ?)",
+                        (d_name.value, d_price.value or 0, user_id),
+                    )
+                create_dialog.close()
+                refresh()
+                ui.notify(f"Đã thêm đồ uống {d_name.value}", type="positive")
 
-        # Replace refresh to include actions
-        def refresh_enhanced():
-            with get_db() as conn:
-                search = search_input.value
-                if search:
-                    like = f"%{search}%"
-                    rows = conn.execute(
-                        "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND name LIKE ? ORDER BY name",
-                        (like,),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 ORDER BY name"
-                    ).fetchall()
-            drink_table.rows = [{"id": r["id"], "name": r["name"], "price": f"{r['price_per_serving']:,.0f}đ"} for r in rows]
-            drink_options.clear()
-            drink_options.update({r["id"]: r["name"] for r in rows})
-            drink_table.update()
+            ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
 
-    # Drink selector for recipe viewing
+        # ---------- Edit dialog ----------
+        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
+            ui.label("Sửa đồ uống").classes("text-xl font-bold mb-4")
+            e_drink_id = ui.number("e_drink_id").props("hidden")
+            e_name = ui.input("Tên đồ uống *").props("outlined").classes("w-full mb-2")
+            e_price = ui.number("Giá / ly (VNĐ)", value=0).props("outlined").classes("w-full mb-4")
+            edit_err = ui.label().classes("text-red-500 text-sm")
+
+            def handle_edit():
+                if not e_name.value:
+                    edit_err.set_text("Vui lòng nhập tên đồ uống")
+                    return
+                user_id = app.storage.user.get("user_id", 1)
+                with get_db() as conn:
+                    existing = conn.execute(
+                        "SELECT id FROM drinks WHERE name = ? AND id != ?",
+                        (e_name.value, int(e_drink_id.value or 0)),
+                    ).fetchone()
+                    if existing:
+                        edit_err.set_text("Tên đồ uống đã tồn tại")
+                        return
+                    conn.execute(
+                        "UPDATE drinks SET name = ?, price_per_serving = ?, updated_at = datetime('now') WHERE id = ?",
+                        (e_name.value, e_price.value or 0, int(e_drink_id.value or 0)),
+                    )
+                    conn.execute(
+                        """INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details)
+                           VALUES (?, 'update', 'drink', ?, ?)""",
+                        (user_id, int(e_drink_id.value or 0), f'{{"name": "{e_name.value}", "price": {e_price.value or 0}}}'),
+                    )
+                edit_dialog.close()
+                refresh()
+                ui.notify("Đã cập nhật đồ uống", type="positive")
+
+            def open_edit(drink: dict):
+                e_drink_id.value = drink["id"]
+                e_name.value = drink.get("name", "")
+                e_price.value = drink.get("price_raw", 0)
+                edit_err.set_text("")
+                edit_dialog.open()
+
+            ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
+
+    # ---------- Refresh & buttons ----------
+    def refresh():
+        with get_db() as conn:
+            search = search_input.value
+            if search:
+                like = f"%{search}%"
+                rows = conn.execute(
+                    "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND name LIKE ? ORDER BY name",
+                    (like,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 ORDER BY name"
+                ).fetchall()
+        result = []
+        for r in rows:
+            result.append({
+                "id": r["id"],
+                "name": r["name"],
+                "price": f"{r['price_per_serving']:,.0f}đ",
+                "price_raw": r["price_per_serving"],
+                "action": r["id"],
+            })
+        drink_table.rows = result
+        drink_table.update()
+        # Update drink_options
+        drink_options.clear()
+        drink_options.update({r["id"]: r["name"] for r in rows})
+
+    search_input.on("keyup.enter", refresh)
+
+    with ui.row().classes("gap-2 mb-4"):
+        if role in ("MANAGER", "OWNER"):
+            ui.button("Thêm đồ uống", on_click=create_dialog.open, icon="add").props("unelevated").classes("bg-green-600 text-white")
+        ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
+
+    # Render action buttons in the action column
+    drink_table.add_slot(
+        "body-cell-action",
+        """
+        <q-td :props="props">
+            <div class="flex gap-1">
+                <q-btn flat dense size="sm" color="primary" icon="visibility" @click="$parent.$emit('view_recipe', props.row)">
+                    <q-tooltip>Xem công thức</q-tooltip>
+                </q-btn>
+            </div>
+        </q-td>
+        """,
+    )
+    drink_table.on("view_recipe", lambda e: show_recipe(e.args["id"], e.args["name"]))
+
+    if role in ("MANAGER", "OWNER"):
+        # Add edit drink and edit recipe buttons for MANAGER+
+        drink_table.add_slot(
+            "body-cell-action",
+            """
+            <q-td :props="props">
+                <div class="flex gap-1">
+                    <q-btn flat dense size="sm" color="primary" icon="visibility" @click="$parent.$emit('view_recipe', props.row)">
+                        <q-tooltip>Xem công thức</q-tooltip>
+                    </q-btn>
+                    <q-btn flat dense size="sm" color="warning" icon="edit" @click="$parent.$emit('edit_drink', props.row)">
+                        <q-tooltip>Sửa đồ uống</q-tooltip>
+                    </q-btn>
+                    <q-btn flat dense size="sm" color="secondary" icon="menu_book" @click="$parent.$emit('edit_recipe', props.row)">
+                        <q-tooltip>Sửa công thức</q-tooltip>
+                    </q-btn>
+                </div>
+            </q-td>
+            """,
+        )
+        drink_table.on("view_recipe", lambda e: show_recipe(e.args["id"], e.args["name"]))
+        drink_table.on("edit_drink", lambda e: open_edit(e.args))
+        drink_table.on("edit_recipe", lambda e: show_edit_recipe(e.args["id"], e.args["name"]))
+
+    # Drink selector for recipe viewing (backup dropdown)
     with ui.row().classes("w-full items-end gap-2 mt-4 flex-wrap"):
         drink_options = {}
         ui.label("Xem công thức:").classes("text-sm font-bold")
@@ -381,4 +432,4 @@ def render():
             selected_drink.set_value(first_id)
         ui.button("Xem", on_click=lambda: show_recipe(selected_drink.value, drink_options.get(selected_drink.value, "")), icon="visibility").props("outlined")
 
-    refresh_enhanced()
+    refresh()
