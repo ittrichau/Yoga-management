@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Database (local data)
+data/*.db
+
+# NiceGUI storage
+.nicegui/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Environment secrets
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Continue AI config (personal)
+.continue/

@@ -1,0 +1,44 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Git
+.git/
+.gitignore
+
+# Database (local data)
+data/*.db
+
+# NiceGUI storage
+.nicegui/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Environment files
+.env
+.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Continue AI config
+.continue/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation
+README.md
+*.md

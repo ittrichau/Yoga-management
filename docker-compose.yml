@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    container_name: yoga-nutrition
+    ports:
+      - "8080:8080"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - STORAGE_SECRET=${STORAGE_SECRET:-gym-nutrition-secret}
+      - SUPER_USER_USERNAME=${SUPER_USER_USERNAME:-admin}
+      - SUPER_USER_PASSWORD=${SUPER_USER_PASSWORD:-admin123}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
