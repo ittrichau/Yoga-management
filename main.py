@@ -1,5 +1,7 @@
 """Main entry point."""
-from nicegui import ui
+import os
+
+from nicegui import ui, app
 
 from database import init_db, seed_defaults
 from auth import router as auth_router
@@ -11,22 +13,7 @@ from transaction import router as transaction_router
 from audit import router as audit_router
 from dashboard import router as dashboard_router
 
-# Initialize database
-init_db()
-seed_defaults()
 
-# Register API routers
-from nicegui import app
-app.include_router(auth_router)
-app.include_router(customer_router)
-app.include_router(drink_router)
-app.include_router(ingredient_router)
-app.include_router(package_router)
-app.include_router(transaction_router)
-app.include_router(audit_router)
-app.include_router(dashboard_router)
-
-# Dashboard page
 @ui.page("/")
 def index():
     """Redirect to dashboard."""
@@ -39,8 +26,33 @@ def index():
         return
     ui.navigate.to("/dashboard")
 
-ui.run(
-    title="Quản lý Dinh dưỡng Gym",
-    favicon="🏋️",
-    storage_secret="gym-nutrition-secret-key-change-me",
-)
+
+# Allow running under both `python main.py` and multiprocessing contexts
+# (e.g. uvicorn workers, Render's WEB_CONCURRENCY).
+if __name__ in {"__main__", "__mp_main__"}:
+    # Initialize database
+    init_db()
+    seed_defaults()
+
+    # Register API routers
+    app.include_router(auth_router)
+    app.include_router(customer_router)
+    app.include_router(drink_router)
+    app.include_router(ingredient_router)
+    app.include_router(package_router)
+    app.include_router(transaction_router)
+    app.include_router(audit_router)
+    app.include_router(dashboard_router)
+
+    port = int(os.environ.get("PORT", "8080"))
+    host = os.environ.get("HOST", "0.0.0.0")
+
+    ui.run(
+        host=host,
+        port=port,
+        title="Quản lý Dinh dưỡng Gym",
+        favicon="🏋️",
+        storage_secret="gym-nutrition-secret-key-change-me",
+        reload=False,
+        show=False,
+    )

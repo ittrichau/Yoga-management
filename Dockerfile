@@ -12,7 +12,9 @@ COPY *.py .
 # Tạo thư mục data cho SQLite
 RUN mkdir -p /app/data
 
+# Render cung cấp PORT qua env; mặc định 8080 cho local/docker-compose
+ENV PORT=8080
 EXPOSE 8080
 
-# Chạy với uvicorn production mode (không reload)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Chạy trực tiếp bằng python main.py để NiceGUI ui.run() bind port đúng
+CMD ["python", "main.py"]
