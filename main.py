@@ -1,5 +1,6 @@
 """Main entry point."""
 import os
+from pathlib import Path
 
 from nicegui import ui, app
 
@@ -56,10 +57,15 @@ if __name__ in {"__main__", "__mp_main__"}:
     port = int(os.environ.get("PORT", "8080"))
     host = os.environ.get("HOST", "0.0.0.0")
 
+    # Mount static files for custom CSS
+    static_dir = Path(__file__).resolve().parent / "static"
+    if static_dir.exists():
+        app.add_static_files("/static", static_dir)
+
     ui.run(
         host=host,
         port=port,
-        title="Quản lý Dinh dưỡng Gym",
+        title="Quản lý Gym",
         favicon="🏋️",
         storage_secret="gym-nutrition-secret-key-change-me",
         reload=False,

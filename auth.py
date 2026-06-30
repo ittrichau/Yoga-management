@@ -29,63 +29,73 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 # ==================== Shared Navbar ====================
 def render_navbar():
-    """Navbar with location switcher."""
+    """Navbar with location switcher - responsive with mobile hamburger."""
     role = app.storage.user.get("role", "STAFF")
     loc_name = get_current_location_name()
     loc_id = get_current_location_id()
+    username = app.storage.user.get("username", "")
 
-    with ui.header().classes("bg-blue-600 text-white p-2 shadow-lg"):
-        with ui.column().classes("w-full gap-1"):
-            with ui.row().classes("items-center w-full justify-between"):
-                ui.label("🏋️ Quản lý Gym").classes("text-md md:text-lg font-bold")
-                with ui.row().classes("items-center gap-2"):
-                    loc_color = "bg-green-500" if loc_id else "bg-red-400"
-                    with ui.row().classes(f"items-center gap-1 px-2 py-1 rounded {loc_color}"):
-                        ui.label(f"📍 {loc_name}").classes("text-xs md:text-sm")
-                    username = app.storage.user.get("username", "")
-                    ui.label(f"👤 {username}").classes("text-xs md:text-sm")
-                    def do_logout():
-                        app.storage.user.clear()
-                        ui.navigate.to("/login")
-                    ui.button("Đăng xuất", icon="logout", on_click=do_logout).props("flat color=white dense")
-                    def show_loc():
-                        loc_dialog.open()
-                    ui.button("Đổi cơ sở", icon="swap_horiz", on_click=show_loc).props("flat color=white dense")
-            with ui.row().classes("items-center gap-x-2 gap-y-1 flex-wrap text-xs md:text-sm"):
-                ui.link("📊 Bảng điều khiển", "/").classes("text-white hover:underline px-2")
-                # Kinh doanh dropdown
-                with ui.button("👥 Kinh doanh ▾").props("flat color=white dense"):
-                    with ui.menu():
-                        ui.menu_item("Khách hàng", on_click=lambda: ui.navigate.to("/customers"))
-                        ui.menu_item("Check-in 🟡", on_click=lambda: ui.navigate.to("/checkin"))
-                        ui.menu_item("Gói trả trước", on_click=lambda: ui.navigate.to("/packages"))
-                        ui.menu_item("PT", on_click=lambda: ui.navigate.to("/pt"))
-                        if role in ("MANAGER", "OWNER"):
-                            ui.separator()
-                            ui.menu_item("Nâng cấp gói", on_click=lambda: ui.navigate.to("/packages/upgrade"))
-                # Kho dropdown
-                with ui.button("🥤 Kho ▾").props("flat color=white dense"):
-                    with ui.menu():
-                        ui.menu_item("Đồ uống", on_click=lambda: ui.navigate.to("/drinks"))
-                        ui.menu_item("Nguyên liệu", on_click=lambda: ui.navigate.to("/ingredients"))
-                        if role in ("MANAGER", "OWNER"):
-                            ui.separator()
-                            ui.menu_item("Mẫu gói", on_click=lambda: ui.navigate.to("/package-templates"))
-                # Hệ thống dropdown
-                if role in ("MANAGER", "OWNER"):
-                    with ui.button("⚙️ Hệ thống ▾").props("flat color=white dense"):
-                        with ui.menu():
-                            ui.menu_item("Nhật ký", on_click=lambda: ui.navigate.to("/audit"))
-                            if role == "OWNER":
-                                ui.separator()
-                                ui.menu_item("Người dùng", on_click=lambda: ui.navigate.to("/users"))
-                                ui.menu_item("Cơ sở", on_click=lambda: ui.navigate.to("/locations"))
+    # CSS injection for this page
+    ui.add_head_html('<link rel="stylesheet" href="/static/style.css">')
+
+    with ui.header().classes("items-center justify-between") as header:
+        header.props("elevated")
+        # Left: Brand
+        with ui.row().classes("items-center gap-2"):
+            ui.label("🏋️").classes("text-xl md:text-2xl")
+            ui.label("Quản lý Gym").classes("text-base md:text-lg font-bold text-white")
+
+        # Right: User info & actions (desktop)
+        with ui.row().classes("items-center gap-1 md:gap-3"):
+            # Location badge
+            with ui.element("div").classes("location-badge " + ("active" if loc_id else "inactive") + " hidden sm:inline-flex"):
+                ui.label("📍").classes("text-xs")
+                ui.label(loc_name).classes("text-xs font-semibold")
+
+            # Username (desktop)
+            ui.label(f"👤 {username}").classes("hidden md:block text-xs text-white/80")
+
+            # Mobile hamburger menu
+            with ui.button(icon="menu").props("flat round color=white dense") as menu_btn:
+                with ui.menu().classes("mt-2"):
+                    ui.menu_item("📊 Bảng điều khiển", on_click=lambda: ui.navigate.to("/"))
+                    ui.menu_item("👥 Khách hàng", on_click=lambda: ui.navigate.to("/customers"))
+                    ui.menu_item("🟡 Check-in", on_click=lambda: ui.navigate.to("/checkin"))
+                    ui.menu_item("📦 Gói trả trước", on_click=lambda: ui.navigate.to("/packages"))
+                    ui.menu_item("💪 PT", on_click=lambda: ui.navigate.to("/pt"))
+                    ui.separator()
+                    ui.menu_item("🥤 Đồ uống", on_click=lambda: ui.navigate.to("/drinks"))
+                    ui.menu_item("🧪 Nguyên liệu", on_click=lambda: ui.navigate.to("/ingredients"))
+                    ui.separator()
+                    ui.menu_item("🔁 Bán hàng", on_click=lambda: ui.navigate.to("/sales"))
+                    if role in ("MANAGER", "OWNER"):
+                        ui.separator()
+                        ui.menu_item("📋 Nhật ký", on_click=lambda: ui.navigate.to("/audit"))
+                        ui.menu_item("🔧 Mẫu gói", on_click=lambda: ui.navigate.to("/package-templates"))
+                        ui.menu_item("⬆️ Nâng cấp gói", on_click=lambda: ui.navigate.to("/packages/upgrade"))
+                    if role == "OWNER":
+                        ui.separator()
+                        ui.menu_item("👥 Người dùng", on_click=lambda: ui.navigate.to("/users"))
+                        ui.menu_item("🏢 Cơ sở", on_click=lambda: ui.navigate.to("/locations"))
+                    ui.separator()
+                    ui.menu_item("📍 Đổi cơ sở", on_click=lambda: loc_dialog.open())
+
+            # Desktop nav buttons
+            with ui.row().classes("hidden md:flex items-center gap-1"):
+                ui.button("Bán hàng", icon="point_of_sale", on_click=lambda: ui.navigate.to("/sales")).props("flat color=white dense")
+                ui.button("Check-in", icon="check_circle", on_click=lambda: ui.navigate.to("/checkin")).props("flat color=white dense")
+
+            # Logout
+            def do_logout():
+                app.storage.user.clear()
+                ui.navigate.to("/login")
+            ui.button(icon="logout", on_click=do_logout).props("flat round color=white dense").tooltip("Đăng xuất")
 
     # Switcher dialog
     with ui.dialog() as loc_dialog, ui.card().classes("p-6 w-80"):
         ui.label("Chọn cơ sở làm việc").classes("text-xl font-bold mb-4")
         with ui.column().classes("w-full gap-2"):
-            uid = app.storage.user.get("user_id", 0)
+            uid_val = app.storage.user.get("user_id", 0)
             with get_db() as conn:
                 locs = conn.execute(
                     """SELECT l.id, l.name, l.address
@@ -93,21 +103,21 @@ def render_navbar():
                        JOIN user_locations ul ON ul.location_id = l.id
                        WHERE ul.user_id = ? AND l.is_active = 1
                        ORDER BY l.name""",
-                    (uid,),
+                    (uid_val,),
                 ).fetchall()
             if loc_id:
-                ui.label(f"Đang làm việc tại: {loc_name}").classes("text-sm font-bold")
+                ui.label(f"Đang làm việc tại: {loc_name}").classes("text-sm font-bold mb-2")
             for loc in locs:
                 is_cur = loc["id"] == loc_id
-                label = f"📍 {loc['name']}"
+                label = f"{loc['name']}"
                 if is_cur:
-                    label += " (hiện tại)"
+                    label += " ✓"
                 ui.button(
                     label,
-                    on_click=lambda l=loc: switch_location(l["id"], l["name"]),
-                    icon="check" if is_cur else "place",
+                    on_click=lambda ll=loc: switch_location(ll["id"], ll["name"]),
+                    icon="place" if not is_cur else "check",
                 ).props("unelevated" if is_cur else "outlined").classes(
-                    "w-full" + (" bg-green-500 text-white" if is_cur else "")
+                    "w-full" + (" bg-primary text-white" if is_cur else "")
                 )
         ui.button("Đóng", on_click=loc_dialog.close, icon="close").props("outlined").classes("w-full mt-4")
 
@@ -344,42 +354,49 @@ def deactivate_user(user_id: int, user: dict = Depends(require_role("OWNER"))):
 # ---------- Login ----------
 @ui.page("/login")
 def login_page():
-    ui.query("body").classes("flex items-center justify-center min-h-screen bg-gray-100")
-    with ui.card().classes("p-6 md:p-8 w-full max-w-sm mx-4 shadow-xl"):
-        ui.label("Quản lý Dinh dưỡng Gym").classes("text-2xl font-bold text-center mb-6")
-        username = ui.input("Tên đăng nhập").props("outlined").classes("w-full mb-4")
-        password = ui.input("Mật khẩu", password=True, password_toggle_button=True).props("outlined").classes("w-full mb-6")
-        error_label = ui.label().classes("text-red-500 text-sm mb-2")
+    ui.add_head_html('<link rel="stylesheet" href="/static/style.css">')
+    ui.query("body").classes("login-body")
+    with ui.column().classes("items-center justify-center min-h-screen"):
+        with ui.card().classes("login-card p-8 md:p-10 w-full max-w-md mx-4"):
+            # Logo & Header
+            with ui.element("div").classes("login-header"):
+                ui.label("🧘").classes("logo")
+                ui.label("Yoga Management").classes("title")
+                ui.label("Hệ thống quản lý phòng tập Yoga").classes("subtitle")
 
-        def handle_login():
-            error_label.set_text("")
-            user_data = None
-            with get_db() as conn:
-                row = conn.execute(
-                    "SELECT id, username, hashed_password, role, is_active FROM users WHERE username = ?",
-                    (username.value,),
-                ).fetchone()
-                if row is not None:
-                    user_data = dict(row)
-            if user_data is None:
-                error_label.set_text("Sai tên đăng nhập hoặc mật khẩu")
-                return
-            if not user_data["is_active"]:
-                error_label.set_text("Tài khoản đã bị vô hiệu hóa")
-                return
-            if not verify_password(password.value, user_data["hashed_password"]):
-                error_label.set_text("Sai tên đăng nhập hoặc mật khẩu")
-                return
-            token = create_access_token({"sub": user_data["username"], "role": user_data["role"]})
-            app.storage.user.update({
-                "token": token,
-                "username": user_data["username"],
-                "role": user_data["role"],
-                "user_id": user_data["id"],
-            })
-            ui.navigate.to("/select-location")
+            username = ui.input("Tên đăng nhập").props("outlined dense").classes("w-full mb-3")
+            password = ui.input("Mật khẩu", password=True, password_toggle_button=True).props("outlined dense").classes("w-full mb-2")
+            error_label = ui.label().classes("text-red-500 text-sm mb-2 block")
 
-        ui.button("Đăng nhập", on_click=handle_login, icon="login").props("unelevated").classes("w-full bg-blue-600 text-white")
+            def handle_login():
+                error_label.set_text("")
+                user_data = None
+                with get_db() as conn:
+                    row = conn.execute(
+                        "SELECT id, username, hashed_password, role, is_active FROM users WHERE username = ?",
+                        (username.value,),
+                    ).fetchone()
+                    if row is not None:
+                        user_data = dict(row)
+                if user_data is None:
+                    error_label.set_text("Sai tên đăng nhập hoặc mật khẩu")
+                    return
+                if not user_data["is_active"]:
+                    error_label.set_text("Tài khoản đã bị vô hiệu hóa")
+                    return
+                if not verify_password(password.value, user_data["hashed_password"]):
+                    error_label.set_text("Sai tên đăng nhập hoặc mật khẩu")
+                    return
+                token = create_access_token({"sub": user_data["username"], "role": user_data["role"]})
+                app.storage.user.update({
+                    "token": token,
+                    "username": user_data["username"],
+                    "role": user_data["role"],
+                    "user_id": user_data["id"],
+                })
+                ui.navigate.to("/select-location")
+
+            ui.button("Đăng nhập", on_click=handle_login, icon="login").props("unelevated").classes("w-full bg-primary text-white")
 
 
 # ---------- Location Selection ----------
@@ -411,30 +428,37 @@ def select_location_page():
         ui.navigate.to("/")
         return
 
-    ui.query("body").classes("flex items-center justify-center min-h-screen bg-gray-100")
-    with ui.card().classes("p-6 md:p-8 w-full max-w-md mx-4 shadow-xl"):
-        ui.label("Chọn cơ sở làm việc").classes("text-2xl font-bold text-center mb-2")
-        username = app.storage.user.get("username", "")
-        ui.label(f"Xin chào, {username}").classes("text-center text-gray-500 mb-6")
+    ui.add_head_html('<link rel="stylesheet" href="/static/style.css">')
+    ui.query("body").classes("location-page")
+    with ui.column().classes("items-center justify-center min-h-screen"):
+        with ui.card().classes("login-card p-8 md:p-10 w-full max-w-md mx-4"):
+            with ui.element("div").classes("login-header"):
+                ui.label("📍").classes("logo")
+                ui.label("Chọn cơ sở làm việc").classes("title")
+                username = app.storage.user.get("username", "")
+                ui.label(f"Xin chào, {username}").classes("subtitle")
 
-        if not locs:
-            ui.label("Bạn chưa được gán vào cơ sở nào. Vui lòng liên hệ quản lý.").classes("text-red-500 text-center")
-            def go_login():
+            if not locs:
+                ui.label("Bạn chưa được gán vào cơ sở nào. Vui lòng liên hệ quản lý.").classes("text-red-500 text-center")
+                def go_login():
+                    app.storage.user.clear()
+                    ui.navigate.to("/login")
+                ui.button("Quay lại đăng nhập", on_click=go_login, icon="arrow_back").props("outlined").classes("w-full mt-4")
+                return
+
+            for loc in locs:
+                addr = loc.get("address", "")
+                subtitle = addr if addr else ""
+                ui.button(
+                    f"{loc['name']}",
+                    on_click=lambda l=loc: _pick_location(l["id"], l["name"]),
+                    icon="place",
+                ).props("unelevated").classes("w-full bg-primary text-white mb-2")
+
+            def do_logout():
                 app.storage.user.clear()
                 ui.navigate.to("/login")
-            ui.button("Quay lại đăng nhập", on_click=go_login, icon="arrow_back").props("outlined").classes("w-full mt-4")
-            return
-
-        for loc in locs:
-            ui.button(
-                f"📍 {loc['name']}",
-                on_click=lambda l=loc: _pick_location(l["id"], l["name"]),
-            ).props("unelevated").classes("w-full bg-blue-600 text-white mb-2")
-
-        def do_logout():
-            app.storage.user.clear()
-            ui.navigate.to("/login")
-        ui.button("Đăng xuất", on_click=do_logout, icon="logout").props("outlined").classes("w-full mt-2 text-red-500")
+            ui.button("Đăng xuất", on_click=do_logout, icon="logout").props("outlined").classes("w-full mt-2 text-red-500")
 
 
 def _pick_location(location_id: int, location_name: str):
@@ -455,7 +479,11 @@ def users_page():
         return
 
     render_navbar()
-    ui.label("Quản lý người dùng").classes("text-2xl font-bold mb-4")
+
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("👥").classes("text-2xl")
+            ui.label("Quản lý người dùng")
 
     user_table = ui.table(
         columns=[
@@ -502,8 +530,8 @@ def users_page():
     location_options = {loc["id"]: loc["name"] for loc in all_locations}
 
     # Create dialog
-    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
-        ui.label("Người dùng mới").classes("text-xl font-bold mb-4")
+    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 max-w-full"):
+        ui.label("👤 Người dùng mới").classes("section-header")
         u_username = ui.input("Tên đăng nhập *").props("outlined").classes("w-full mb-2")
         u_password = ui.input("Mật khẩu *", password=True, password_toggle_button=True).props("outlined").classes("w-full mb-2")
         u_fullname = ui.input("Họ tên").props("outlined").classes("w-full mb-2")
@@ -539,12 +567,12 @@ def users_page():
             ui.notify("Người dùng đã được tạo", type="positive")
 
         with ui.row().classes("gap-2"):
-            ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white")
+            ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary")
             ui.button("Đóng", on_click=create_dialog.close, icon="close").props("outlined")
 
     # Edit dialog
-    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
-        ui.label("Sửa người dùng").classes("text-xl font-bold mb-4")
+    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96 max-w-full"):
+        ui.label("✏️ Sửa người dùng").classes("section-header")
         e_id_label = ui.label().classes("text-sm text-gray-500 mb-2")
         e_username = ui.input("Tên đăng nhập").props("outlined readonly").classes("w-full mb-2")
         e_fullname = ui.input("Họ tên").props("outlined").classes("w-full mb-2")
@@ -579,13 +607,14 @@ def users_page():
             ui.notify("Người dùng đã được cập nhật", type="positive")
 
         with ui.row().classes("gap-2"):
-            ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("bg-blue-600 text-white")
+            ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary")
             ui.button("Đóng", on_click=edit_dialog.close, icon="close").props("outlined")
 
     # ---------- Actions ----------
-    with ui.row().classes("gap-2 mb-4"):
-        ui.button("Người dùng mới", on_click=create_dialog.open, icon="add").props("unelevated").classes("bg-green-600 text-white")
-        ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("gap-2 mb-3"):
+            ui.button("Người dùng mới", on_click=create_dialog.open, icon="add").props("unelevated").classes("btn-success")
+            ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
 
     def open_edit(row_id):
         with get_db() as conn:
@@ -661,7 +690,11 @@ def locations_page():
         return
 
     render_navbar()
-    ui.label("Quản lý cơ sở").classes("text-2xl font-bold mb-4")
+
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("🏢").classes("text-2xl")
+            ui.label("Quản lý cơ sở")
 
     loc_table = ui.table(
         columns=[
@@ -688,8 +721,8 @@ def locations_page():
         loc_table.update()
 
     # Create dialog
-    with ui.dialog() as loc_create_dlg, ui.card().classes("p-6 w-96"):
-        ui.label("Cơ sở mới").classes("text-xl font-bold mb-4")
+    with ui.dialog() as loc_create_dlg, ui.card().classes("p-6 w-96 max-w-full"):
+        ui.label("🏢 Cơ sở mới").classes("section-header")
         l_name = ui.input("Tên cơ sở *").props("outlined").classes("w-full mb-2")
         l_addr = ui.input("Địa chỉ").props("outlined").classes("w-full mb-4")
         l_err = ui.label().classes("text-red-500 text-sm")
@@ -717,12 +750,12 @@ def locations_page():
             ui.notify("Cơ sở đã được tạo", type="positive")
 
         with ui.row().classes("gap-2"):
-            ui.button("Lưu", on_click=handle_create_loc, icon="save").props("unelevated").classes("bg-blue-600 text-white")
+            ui.button("Lưu", on_click=handle_create_loc, icon="save").props("unelevated").classes("btn-primary")
             ui.button("Đóng", on_click=loc_create_dlg.close, icon="close").props("outlined")
 
     # Edit dialog
-    with ui.dialog() as loc_edit_dlg, ui.card().classes("p-6 w-96"):
-        ui.label("Sửa cơ sở").classes("text-xl font-bold mb-4")
+    with ui.dialog() as loc_edit_dlg, ui.card().classes("p-6 w-96 max-w-full"):
+        ui.label("✏️ Sửa cơ sở").classes("section-header")
         le_id = ui.label().classes("hidden")
         le_name = ui.input("Tên cơ sở *").props("outlined").classes("w-full mb-2")
         le_addr = ui.input("Địa chỉ").props("outlined").classes("w-full mb-4")
@@ -744,12 +777,13 @@ def locations_page():
             ui.notify("Cơ sở đã được cập nhật", type="positive")
 
         with ui.row().classes("gap-2"):
-            ui.button("Lưu", on_click=handle_edit_loc, icon="save").props("unelevated").classes("bg-blue-600 text-white")
+            ui.button("Lưu", on_click=handle_edit_loc, icon="save").props("unelevated").classes("btn-primary")
             ui.button("Đóng", on_click=loc_edit_dlg.close, icon="close").props("outlined")
 
-    with ui.row().classes("gap-2 mb-4"):
-        ui.button("Cơ sở mới", on_click=loc_create_dlg.open, icon="add").props("unelevated").classes("bg-green-600 text-white")
-        ui.button("Làm mới", on_click=refresh_locs, icon="refresh").props("outlined")
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("gap-2 mb-3"):
+            ui.button("Cơ sở mới", on_click=loc_create_dlg.open, icon="add").props("unelevated").classes("btn-success")
+            ui.button("Làm mới", on_click=refresh_locs, icon="refresh").props("outlined")
 
     def open_edit_loc(row_id):
         with get_db() as conn:

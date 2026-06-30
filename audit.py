@@ -308,7 +308,11 @@ def render():
     loc_id = get_current_location_id()
     is_owner = role == "OWNER"
     render_navbar()
-    ui.label("Nhật ký kiểm toán").classes("text-2xl font-bold mb-4")
+
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("📋").classes("text-2xl")
+            ui.label("Nhật ký kiểm toán")
 
     # Load users for filter
     with get_db() as conn:
@@ -326,18 +330,19 @@ def render():
         entity_options += ["user", "location"]
 
     # Tabs: Tất cả / Theo nhân viên / Đáng ngờ
-    with ui.tabs().classes("w-full mb-4") as tabs:
-        tab_all = ui.tab("Tất cả", icon="list")
-        tab_by_user = ui.tab("Theo nhân viên", icon="people")
-        tab_suspicious = ui.tab("Đáng ngờ", icon="warning")
+    with ui.element("div").classes("page-container"):
+        with ui.tabs().classes("w-full mb-3") as tabs:
+            tab_all = ui.tab("Tất cả", icon="list")
+            tab_by_user = ui.tab("Theo nhân viên", icon="people")
+            tab_suspicious = ui.tab("Đáng ngờ", icon="warning")
 
     with ui.tab_panels(tabs, value=tab_all).classes("w-full"):
 
         # ===================== Tab: Tất cả =====================
         with ui.tab_panel(tab_all):
-            with ui.card().classes("w-full p-4 mb-4"):
-                ui.label("Bộ lọc").classes("text-sm font-bold mb-2 text-gray-600")
-                with ui.grid().classes("w-full grid-cols-1 md:grid-cols-5 gap-2"):
+            with ui.element("div").classes("custom-card p-4 mb-3"):
+                ui.label("🔍 Bộ lọc").classes("section-header")
+                with ui.element("div").classes("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 mt-2"):
                     entity_filter = ui.select(
                         {"": "Tất cả", **{e: ENTITY_LABELS.get(e, e) for e in entity_options}},
                         label="Đối tượng",
@@ -363,7 +368,7 @@ def render():
                         date_from.value = ""
                         date_to.value = ""
                         refresh()
-                    ui.button("Làm mới", on_click=lambda: refresh(), icon="refresh").props("unelevated").classes("bg-blue-600 text-white")
+                    ui.button("Làm mới", on_click=lambda: refresh(), icon="refresh").props("unelevated").classes("btn-primary")
                     ui.button("Xóa bộ lọc", on_click=clear_filters, icon="clear").props("outlined")
 
             log_table = ui.table(
@@ -516,8 +521,9 @@ def render():
 
         # ===================== Tab: Theo nhân viên =====================
         with ui.tab_panel(tab_by_user):
-            ui.label("Tổng hợp hoạt động theo nhân viên").classes("text-sm text-gray-600 mb-2")
-            with ui.row().classes("w-full gap-2 mb-4 flex-wrap"):
+            with ui.element("div").classes("custom-card p-4 mb-3"):
+                ui.label("📊 Tổng hợp hoạt động theo nhân viên").classes("section-header")
+            with ui.row().classes("w-full gap-2 mb-2 flex-wrap"):
                 sum_from = ui.input("Từ ngày").props("outlined type=date")
                 sum_to = ui.input("Đến ngày").props("outlined type=date")
 
@@ -588,7 +594,8 @@ def render():
 
         # ===================== Tab: Đáng ngờ =====================
         with ui.tab_panel(tab_suspicious):
-            ui.label("Các hành động đáng ngờ cần kiểm tra").classes("text-sm text-gray-600 mb-2")
+            with ui.element("div").classes("custom-card p-4 mb-3"):
+                ui.label("⚠️ Các hành động đáng ngờ").classes("section-header")
             with ui.row().classes("w-full gap-2 mb-2"):
                 with get_db() as conn:
                     count = conn.execute(

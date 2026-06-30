@@ -212,7 +212,7 @@ def render():
     week_ago = _week_ago_str()
     month_prefix = _this_month_prefix() + "%"
 
-    ui.label(f"Bảng điều khiển - {loc_name}").classes("text-2xl font-bold mb-4")
+    ui.add_head_html('<link rel="stylesheet" href="/static/style.css">')
 
     d = {}
     with get_db() as conn:
@@ -238,7 +238,6 @@ def render():
             "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE created_at LIKE ? AND location_id = ?",
             (month_prefix, loc_id),
         ).fetchone()["total"]
-
         d["low_stock_count"] = conn.execute(
             "SELECT COUNT(*) as cnt FROM ingredients WHERE is_active = 1 AND current_stock <= min_stock AND location_id = ?",
             (loc_id,),
@@ -255,7 +254,6 @@ def render():
             "SELECT name, unit, current_stock, min_stock FROM ingredients WHERE is_active = 1 AND current_stock <= min_stock AND location_id = ? ORDER BY name",
             (loc_id,),
         ).fetchall()
-
         d["recent_tx"] = conn.execute(
             """SELECT t.*, c.full_name as customer_name, c.code as customer_code,
                        d.name as drink_name, u.full_name as user_name
@@ -267,188 +265,210 @@ def render():
                 ORDER BY t.created_at DESC LIMIT 5""",
             (loc_id,),
         ).fetchall()
-
         d["all_stock"] = conn.execute(
             "SELECT name, unit, current_stock, min_stock FROM ingredients WHERE is_active = 1 AND location_id = ? ORDER BY name",
             (loc_id,),
         ).fetchall()
 
-    # Stats cards
-    with ui.row().classes("w-full gap-4 mb-8 flex-wrap"):
-        with ui.card().classes("w-full md:w-1/4 p-4 bg-blue-50 text-center"):
-            ui.label(str(d["total_customers"])).classes("text-3xl font-bold text-blue-700")
-            ui.label("Khách hàng").classes("text-sm text-blue-600")
-        with ui.card().classes("w-full md:w-1/4 p-4 bg-green-50 text-center"):
-            ui.label(str(d["total_drinks"])).classes("text-3xl font-bold text-green-700")
-            ui.label("Đồ uống bán ra").classes("text-sm text-green-600")
-        with ui.card().classes("w-full md:w-1/4 p-4 bg-yellow-50 text-center"):
-            ui.label(str(d["today_tx"])).classes("text-3xl font-bold text-yellow-700")
-            ui.label("Giao dịch hôm nay").classes("text-sm text-yellow-600")
-        with ui.card().classes("w-full md:w-1/4 p-4 bg-purple-50 text-center"):
-            ui.label(f"{d['today_revenue']:,.0f}đ").classes("text-3xl font-bold text-purple-700")
-            ui.label("Doanh thu hôm nay").classes("text-sm text-purple-600")
+    with ui.element("div").classes("page-container"):
+        # Page Title
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("📊").classes("text-2xl")
+            ui.label(f"Bảng điều khiển - {loc_name}")
 
-    # Revenue summary
-    with ui.row().classes("w-full gap-4 mb-8 flex-wrap"):
-        with ui.card().classes("w-full md:w-1/3 p-4 bg-indigo-50"):
-            ui.label("Doanh thu tuần này").classes("text-lg text-indigo-700")
-            ui.label(f"{d['week_revenue']:,.0f}đ").classes("text-2xl font-bold text-indigo-800")
-        with ui.card().classes("w-full md:w-1/3 p-4 bg-pink-50"):
-            ui.label("Doanh thu tháng này").classes("text-lg text-pink-700")
-            ui.label(f"{d['month_revenue']:,.0f}đ").classes("text-2xl font-bold text-pink-800")
-        with ui.card().classes("w-full md:w-1/3 p-4 bg-orange-50"):
-            ui.label("Doanh thu PT hôm nay").classes("text-lg text-orange-700")
-            ui.label(f"{d['today_pt_revenue']:,.0f}đ").classes("text-2xl font-bold text-orange-800")
-            ui.label(f"Tháng này: {d['month_pt_revenue']:,.0f}đ").classes("text-sm text-orange-600")
+        # Stats Grid
+        with ui.element("div").classes("revenue-row"):
+            with ui.element("div").classes("stat-card border-primary"):
+                with ui.row().classes("items-center gap-3"):
+                    ui.icon("people", size="2.5rem").classes("text-primary")
+                    with ui.column():
+                        ui.label(str(d["total_customers"])).classes("stat-value text-primary")
+                        ui.label("Khách hàng đang hoạt động").classes("stat-label")
+            with ui.element("div").classes("stat-card border-success"):
+                with ui.row().classes("items-center gap-3"):
+                    ui.icon("local_drink", size="2.5rem").classes("text-success")
+                    with ui.column():
+                        ui.label(str(d["total_drinks"])).classes("stat-value text-success")
+                        ui.label("Đồ uống").classes("stat-label")
+            with ui.element("div").classes("stat-card border-warning"):
+                with ui.row().classes("items-center gap-3"):
+                    ui.icon("receipt_long", size="2.5rem").classes("text-warning")
+                    with ui.column():
+                        ui.label(str(d["today_tx"])).classes("stat-value text-warning")
+                        ui.label("Bán hàng hôm nay").classes("stat-label")
+            with ui.element("div").classes("stat-card border-info"):
+                with ui.row().classes("items-center gap-3"):
+                    ui.icon("account_balance_wallet", size="2.5rem").classes("text-info")
+                    with ui.column():
+                        ui.label(f"{d['today_revenue']:,.0f}đ").classes("stat-value text-info")
+                        ui.label("Doanh thu hôm nay").classes("stat-label")
 
-    # Low stock alerts
-    if d["low_stock_count"] > 0:
-        with ui.card().classes("w-full p-4 mb-6 bg-red-50 border-2 border-red-300"):
-            ui.label(f"!!! {d['low_stock_count']} nguyên liệu sắp HẾT!").classes("text-lg font-bold text-red-700")
-            for p in d["low_stock_items"]:
-                ui.label(f"* {p['name']}: còn {p['current_stock']:.0f} {p['unit']} (tối thiểu {p['min_stock']:.0f})").classes("text-sm text-red-600 ml-4")
+        # Revenue Summary
+        with ui.element("div").classes("custom-card p-4 mt-4"):
+            ui.label("💰 Tổng quan doanh thu").classes("section-header")
+            with ui.element("div").classes("flex flex-col sm:flex-row gap-4 md:gap-8 mt-2"):
+                ui.label(f"Tuần này: {int(d['week_revenue']):,}đ").classes("text-lg font-bold text-indigo-700")
+                ui.label(f"Tháng này: {int(d['month_revenue']):,}đ").classes("text-lg font-bold text-pink-700")
+                ui.label(f"PT hôm nay: {int(d['today_pt_revenue'] or 0):,}đ").classes("text-lg font-bold text-orange-700")
 
-    # Recent transactions
-    with ui.row().classes("w-full items-center justify-between mb-4 flex-wrap gap-2"):
-        ui.label("Giao dịch gần đây").classes("text-xl font-bold")
-        ui.button("Xuất CSV", icon="download",
-                  on_click=lambda: ui.navigate.to("/api/dashboard/transactions/export-csv", new_tab=True)).props("outlined").classes("text-sm")
+        # Low Stock Alerts
+        if d["low_stock_count"] > 0:
+            with ui.element("div").classes("custom-card p-4 mt-4"):
+                ui.label("⚠️ Cảnh báo tồn kho").classes("section-header")
+                with ui.element("div").classes("alert-card danger mt-2"):
+                    ui.label(f"{d['low_stock_count']} nguyên liệu sắp HẾT!").classes("font-bold mb-1")
+                    for p in d["low_stock_items"]:
+                        ui.label(f"• {p['name']}: còn {p['current_stock']:.0f} {p['unit']} (tối thiểu {p['min_stock']:.0f})").classes("text-sm ml-2")
 
-    tx_table = ui.table(
-        columns=[
-            {"name": "time", "label": "Giờ", "field": "time"},
-            {"name": "customer", "label": "Khách hàng", "field": "customer"},
-            {"name": "drink", "label": "Đồ uống", "field": "drink"},
-            {"name": "servings", "label": "Số ly", "field": "servings"},
-            {"name": "amount", "label": "Doanh thu", "field": "amount"},
-            {"name": "by", "label": "Nhân viên", "field": "by"},
-        ],
-        rows=[],
-        row_key="id",
-    ).classes("w-full overflow-x-auto")
+        # Recent Transactions
+        with ui.element("div").classes("custom-card p-4 mt-4"):
+            with ui.row().classes("items-center justify-between mb-3"):
+                ui.label("🔁 Giao dịch gần đây").classes("section-header")
+                ui.button("Xuất CSV", icon="download",
+                          on_click=lambda: ui.navigate.to("/api/dashboard/transactions/export-csv", new_tab=True)).props("outlined dense")
 
-    tx_table.rows = [
-        {
-            "id": r["id"],
-            "time": r["created_at"][11:19] if r["created_at"] else "",
-            "customer": f"{r['customer_code']} - {r['customer_name']}",
-            "drink": r["drink_name"],
-            "servings": r["servings"],
-            "amount": f"{r['amount']:,.0f}đ" if r["amount"] > 0 else "📦",
-            "by": r["user_name"],
-        }
-        for r in d["recent_tx"]
-    ]
-    tx_table.update()
-
-    # Expiring packages
-    with get_db() as conn:
-        expiring = conn.execute(
-            """SELECT p.id, p.name, p.end_date, p.total_sessions, p.remaining_sessions,
-                       c.full_name as customer_name, c.code as customer_code,
-                       (SELECT SUM(remaining_servings) FROM package_items WHERE package_id = p.id) as remaining_drinks
-                FROM packages p
-                JOIN customers c ON c.id = p.customer_id
-                WHERE p.is_active = 1 AND p.location_id = ? AND p.end_date IS NOT NULL
-                ORDER BY p.end_date ASC""",
-            (loc_id,),
-        ).fetchall()
-    today_d = datetime.strptime(today_prefix[:-1], "%Y-%m-%d")
-    expiring_alerts = []
-    for r in expiring:
-        ed = datetime.strptime(r["end_date"], "%Y-%m-%d")
-        days_left = (ed - today_d).days
-        reasons = []
-        if days_left < 0:
-            reasons.append(f"Quá hạn {abs(days_left)} ngày")
-        elif days_left <= 7:
-            reasons.append(f"Còn {days_left} ngày hết hạn")
-        if r.get("total_sessions", 0) > 0 and r.get("remaining_sessions", 0) <= 3:
-            reasons.append(f"Chỉ còn {r['remaining_sessions']}/{r['total_sessions']} buổi")
-        if reasons:
-            expiring_alerts.append({
-                "package_id": r["id"],
-                "name": r["name"] or f"Gói #{r['id']}",
-                "customer": f"{r['customer_code']} - {r['customer_name']}",
-                "end_date": r["end_date"],
-                "reasons": ", ".join(reasons),
-            })
-    if expiring_alerts:
-        with ui.card().classes("w-full p-4 mb-6 bg-orange-50 border-2 border-orange-300"):
-            ui.label(f"!!! {len(expiring_alerts)} gói sắp hết hạn hoặc sắp hết buổi").classes("text-lg font-bold text-orange-700")
-            for a in expiring_alerts[:10]:
-                ui.label(f"* {a['customer']} - {a['name']} ({a['end_date']}): {a['reasons']}").classes("text-sm text-orange-700 ml-4")
-
-    # Fraud alerts for MANAGER+
-    if role in ("MANAGER", "OWNER"):
-        ui.label("Giao dịch bất thường").classes("text-xl font-bold mt-8 mb-4")
-        with get_db() as conn:
-            suspicious = conn.execute(
-                """SELECT t.*, c.full_name as customer_name, c.code as customer_code,
-                           d.name as drink_name, u.full_name as user_name
-                    FROM transactions t
-                    JOIN customers c ON c.id = t.customer_id
-                    JOIN drinks d ON d.id = t.drink_id
-                    JOIN users u ON u.id = t.created_by
-                    WHERE t.amount = 0 AND t.package_item_id IS NULL
-                      AND t.created_at LIKE ?
-                      AND t.location_id = ?
-                    ORDER BY t.created_at DESC""",
-                (today_prefix, loc_id),
-            ).fetchall()
-        if suspicious:
-            alert_table = ui.table(
+            tx_table = ui.table(
                 columns=[
                     {"name": "time", "label": "Giờ", "field": "time"},
                     {"name": "customer", "label": "Khách hàng", "field": "customer"},
                     {"name": "drink", "label": "Đồ uống", "field": "drink"},
-                    {"name": "by", "label": "Nhân viên", "field": "by"},
+                    {"name": "servings", "label": "Số ly", "field": "servings"},
+                    {"name": "amount", "label": "Doanh thu", "field": "amount"},
+                    {"name": "by", "label": "NV", "field": "by"},
                 ],
                 rows=[],
                 row_key="id",
-            ).classes("w-full overflow-x-auto")
-            alert_table.rows = [
+            ).classes("w-full")
+
+            tx_table.rows = [
                 {
+                    "id": r["id"],
                     "time": r["created_at"][11:19] if r["created_at"] else "",
                     "customer": f"{r['customer_code']} - {r['customer_name']}",
                     "drink": r["drink_name"],
+                    "servings": r["servings"],
+                    "amount": f"{r['amount']:,.0f}đ" if r["amount"] > 0 else "📦",
                     "by": r["user_name"],
                 }
-                for r in suspicious
+                for r in d["recent_tx"]
             ]
-            alert_table.update()
-        else:
-            ui.label("OK - Không có giao dịch đáng ngờ hôm nay.").classes("text-green-600 italic")
+            tx_table.update()
 
-    # Ingredient stock overview
-    ui.label("Tổng quan tồn kho nguyên liệu").classes("text-xl font-bold mt-8 mb-4")
+        # Expiring Packages
+        with get_db() as conn:
+            expiring = conn.execute(
+                """SELECT p.id, p.name, p.end_date, p.total_sessions, p.remaining_sessions,
+                           c.full_name as customer_name, c.code as customer_code,
+                           (SELECT SUM(remaining_servings) FROM package_items WHERE package_id = p.id) as remaining_drinks
+                    FROM packages p
+                    JOIN customers c ON c.id = p.customer_id
+                    WHERE p.is_active = 1 AND p.location_id = ? AND p.end_date IS NOT NULL
+                    ORDER BY p.end_date ASC""",
+                (loc_id,),
+            ).fetchall()
+        today_d = datetime.strptime(today_prefix[:-1], "%Y-%m-%d")
+        expiring_alerts = []
+        for r in expiring:
+            ed = datetime.strptime(r["end_date"], "%Y-%m-%d")
+            days_left = (ed - today_d).days
+            reasons = []
+            if days_left < 0:
+                reasons.append(f"Quá hạn {abs(days_left)} ngày")
+            elif days_left <= 7:
+                reasons.append(f"Còn {days_left} ngày hết hạn")
+            if r.get("total_sessions", 0) > 0 and r.get("remaining_sessions", 0) <= 3:
+                reasons.append(f"Chỉ còn {r['remaining_sessions']}/{r['total_sessions']} buổi")
+            if reasons:
+                expiring_alerts.append({
+                    "package_id": r["id"],
+                    "name": r["name"] or f"Gói #{r['id']}",
+                    "customer": f"{r['customer_code']} - {r['customer_name']}",
+                    "end_date": r["end_date"],
+                    "reasons": ", ".join(reasons),
+                })
+        if expiring_alerts:
+            with ui.element("div").classes("custom-card p-4 mt-4"):
+                ui.label(f"📦 {len(expiring_alerts)} gói sắp hết hạn/sắp hết buổi").classes("section-header")
+                for a in expiring_alerts[:10]:
+                    with ui.element("div").classes("alert-card warning"):
+                        ui.label(f"{a['customer']} - {a['name']} ({a['end_date']}): {a['reasons']}").classes("text-sm font-medium")
 
-    stock_table = ui.table(
-        columns=[
-            {"name": "name", "label": "Nguyên liệu", "field": "name"},
-            {"name": "unit", "label": "Đơn vị", "field": "unit"},
-            {"name": "stock", "label": "Tồn kho", "field": "stock"},
-            {"name": "min", "label": "Tối thiểu", "field": "min"},
-            {"name": "status", "label": "Trạng thái", "field": "status"},
-        ],
-        rows=[],
-        row_key="id",
-    ).classes("w-full overflow-x-auto")
+        # Fraud Alerts (MANAGER+)
+        if role in ("MANAGER", "OWNER"):
+            with ui.element("div").classes("custom-card p-4 mt-4"):
+                ui.label("🔍 Giao dịch bất thường").classes("section-header")
+                with get_db() as conn:
+                    suspicious = conn.execute(
+                        """SELECT t.*, c.full_name as customer_name, c.code as customer_code,
+                                   d.name as drink_name, u.full_name as user_name
+                            FROM transactions t
+                            JOIN customers c ON c.id = t.customer_id
+                            JOIN drinks d ON d.id = t.drink_id
+                            JOIN users u ON u.id = t.created_by
+                            WHERE t.amount = 0 AND t.package_item_id IS NULL
+                              AND t.created_at LIKE ?
+                              AND t.location_id = ?
+                            ORDER BY t.created_at DESC""",
+                        (today_prefix, loc_id),
+                    ).fetchall()
+                if suspicious:
+                    alert2_table = ui.table(
+                        columns=[
+                            {"name": "time", "label": "Giờ", "field": "time"},
+                            {"name": "customer", "label": "Khách hàng", "field": "customer"},
+                            {"name": "drink", "label": "Đồ uống", "field": "drink"},
+                            {"name": "by", "label": "Nhân viên", "field": "by"},
+                        ],
+                        rows=[],
+                        row_key="id",
+                    ).classes("w-full mt-2")
+                    alert2_table.rows = [
+                        {
+                            "time": r["created_at"][11:19] if r["created_at"] else "",
+                            "customer": f"{r['customer_code']} - {r['customer_name']}",
+                            "drink": r["drink_name"],
+                            "by": r["user_name"],
+                        }
+                        for r in suspicious
+                    ]
+                    alert2_table.update()
+                else:
+                    with ui.element("div").classes("alert-card success"):
+                        ui.label("✅ Không có giao dịch đáng ngờ hôm nay.").classes("text-sm font-medium")
 
-    stock_table.rows = []
-    for s in d["all_stock"]:
-        if s["current_stock"] <= s["min_stock"]:
-            status = "!!! THIẾU"
-        elif s["current_stock"] <= s["min_stock"] * 2:
-            status = "!! Cảnh báo"
-        else:
-            status = "OK"
-        stock_table.rows.append({
-            "id": s["name"],
-            "name": s["name"],
-            "unit": s["unit"],
-            "stock": f"{s['current_stock']:.1f}",
-            "min": f"{s['min_stock']:.1f}",
-            "status": status,
-        })
-    stock_table.update()
+        # Ingredient Stock Overview
+        with ui.element("div").classes("custom-card p-4 mt-4"):
+            ui.label("🧪 Tổng quan tồn kho nguyên liệu").classes("section-header")
+
+            stock_table = ui.table(
+                columns=[
+                    {"name": "name", "label": "Nguyên liệu", "field": "name"},
+                    {"name": "unit", "label": "Đơn vị", "field": "unit"},
+                    {"name": "stock", "label": "Tồn kho", "field": "stock"},
+                    {"name": "min", "label": "Tối thiểu", "field": "min"},
+                    {"name": "status", "label": "Trạng thái", "field": "status"},
+                ],
+                rows=[],
+                row_key="id",
+            ).classes("w-full mt-2")
+
+            stock_table.rows = []
+            for s in d["all_stock"]:
+                if s["current_stock"] <= s["min_stock"]:
+                    status = "THIẾU"
+                    status_class = "danger"
+                elif s["current_stock"] <= s["min_stock"] * 2:
+                    status = "Cảnh báo"
+                    status_class = "warning"
+                else:
+                    status = "OK"
+                    status_class = "ok"
+                stock_table.rows.append({
+                    "id": s["name"],
+                    "name": s["name"],
+                    "unit": s["unit"],
+                    "stock": f"{s['current_stock']:.1f}",
+                    "min": f"{s['min_stock']:.1f}",
+                    "status": f'<span class="status-chip {status_class}">{status}</span>',
+                })
+            stock_table.update()

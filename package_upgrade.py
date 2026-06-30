@@ -229,21 +229,26 @@ def upgrade_page():
 
 def render():
     loc_id = get_current_location_id()
-    ui.label("Nâng cấp gói").classes("text-2xl font-bold mb-4")
+
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("⬆️").classes("text-2xl")
+            ui.label("Nâng cấp gói")
 
     # Step 1: select customer
-    with ui.row().classes("w-full items-end gap-2 mb-4 flex-wrap"):
-        search_input = ui.input("Tìm khách hàng (mã, tên, SĐT)").props("outlined").classes("flex-1 min-w-64")
-        ui.button("Tìm", on_click=lambda: do_search(), icon="search").props("unelevated").classes("bg-blue-600 text-white")
+    with ui.element("div").classes("page-container"):
+        with ui.element("div").classes("search-bar"):
+            search_input = ui.input("Tìm khách hàng (mã, tên, SĐT)").props("outlined clearable dense").classes("flex-grow")
+            ui.button("Tìm", on_click=lambda: do_search(), icon="search").props("outlined")
 
     customer_options = {}
-    customer_select = ui.select({}, label="Chọn khách hàng").props("outlined").classes("w-full mb-4")
+    customer_select = ui.select({}, label="Chọn khách hàng").props("outlined dense").classes("w-full mb-3")
     package_options = {}
-    package_select = ui.select({}, label="Chọn gói hiện tại").props("outlined").classes("w-full mb-4")
+    package_select = ui.select({}, label="Chọn gói hiện tại").props("outlined dense").classes("w-full mb-3")
     template_options = {}
-    template_select = ui.select({}, label="Chọn mẫu gói muốn nâng cấp").props("outlined").classes("w-full mb-4")
+    template_select = ui.select({}, label="Chọn mẫu gói muốn nâng cấp").props("outlined dense").classes("w-full mb-3")
 
-    preview_card = ui.column().classes("w-full mb-4")
+    preview_card = ui.column().classes("w-full")
     success_label = ui.label().classes("text-green-600 text-base font-bold mb-2")
     err_label = ui.label().classes("text-red-500 text-sm mb-2")
 
@@ -360,23 +365,23 @@ def render():
                 cost_in_new = new_price
                 method = "trọn gói"
         with preview_card:
-            with ui.card().classes("w-full p-4 border-2 border-blue-200"):
-                ui.label("📊 Chi tiết nâng cấp").classes("text-lg font-bold mb-2")
-                ui.label(f"Phương pháp tính: {method}").classes("text-sm text-gray-600 mb-2")
-                ui.label(f"Gói cũ: {old_pkg['name']} - {old_price:,.0f}đ ({old_rem_s}/{old_total_s} buổi)").classes("text-sm")
+            with ui.element("div").classes("custom-card p-4 mb-2"):
+                ui.label("📊 Chi tiết nâng cấp").classes("section-header")
+                ui.label(f"Phương pháp tính: {method}").classes("text-sm text-gray-600 mt-2")
+                ui.label(f"Gói cũ: {old_pkg['name']} - {old_price:,.0f}đ ({old_rem_s}/{old_total_s} buổi)").classes("text-sm mt-1")
                 ui.label(f"Đơn giá buổi cũ: {old_per:,.0f}đ").classes("text-sm text-gray-700")
                 ui.label(f"Giá trị còn lại: {old_val:,.0f}đ").classes("text-sm text-gray-700")
                 ui.separator()
-                ui.label(f"Gói mới: {new_tpl['name']} - {new_price:,.0f}đ ({new_total_s} buổi, {new_tpl['total_drinks']} ly, {new_tpl['duration_days']} ngày)").classes("text-sm")
+                ui.label(f"Gói mới: {new_tpl['name']} - {new_price:,.0f}đ ({new_total_s} buổi, {new_tpl['total_drinks']} ly, {new_tpl['duration_days']} ngày)").classes("text-sm mt-1")
                 ui.label(f"Đơn giá buổi mới: {new_per:,.0f}đ").classes("text-sm text-gray-700")
                 ui.label(f"Giá trị {old_rem_s} buổi theo gói mới: {cost_in_new:,.0f}đ").classes("text-sm text-gray-700")
                 ui.separator()
                 ui.label(f"💰 Tiền bù phải trả: {top_up:,.0f}đ").classes("text-xl font-bold text-red-600")
             ui.button(
-                "✓ Xác nhận nâng cấp",
+                "THỰC HIỆN NÂNG CẤP",
                 on_click=lambda: do_upgrade(pid, tid),
-                icon="check_circle",
-            ).props("unelevated").classes("bg-green-600 text-white w-full mt-2")
+                icon="upgrade",
+            ).props("unelevated").classes("w-full btn-primary text-lg py-2 mb-2")
 
     def do_upgrade(pid, tid):
         cid = customer_select.value

@@ -137,7 +137,10 @@ def render():
     role = app.storage.user.get("role", "STAFF")
     loc_id = get_current_location_id()
 
-    ui.label("Mẫu gói tập").classes("text-2xl font-bold mb-4")
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("🔧").classes("text-2xl")
+            ui.label("Mẫu gói tập")
 
     type_label = {k: v for k, v in PACKAGE_TYPES}
 
@@ -175,8 +178,8 @@ def render():
         template_table.update()
 
     # Create dialog
-    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-full max-w-lg"):
-        ui.label("Tạo mẫu gói mới").classes("text-xl font-bold mb-4")
+    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-full max-w-lg max-w-full"):
+        ui.label("📦 Tạo mẫu gói mới").classes("section-header")
         t_name = ui.input("Tên mẫu *").props("outlined").classes("w-full mb-2")
         t_type = ui.select({k: v for k, v in PACKAGE_TYPES}, label="Loại gói *").props("outlined").classes("w-full mb-2")
         t_duration = ui.number("Thời hạn (ngày)", value=90).props("outlined").classes("w-full mb-2")
@@ -209,11 +212,12 @@ def render():
             refresh()
             ui.notify("Đã tạo mẫu gói", type="positive")
 
-        ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
+        ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary w-full")
 
     if role in ("MANAGER", "OWNER"):
-        with ui.row().classes("gap-2 mb-4"):
-            ui.button("Tạo mẫu gói", on_click=create_dialog.open, icon="add").props("unelevated").classes("bg-green-600 text-white")
-            ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
+        with ui.element("div").classes("page-container"):
+            with ui.row().classes("gap-2 mb-3"):
+                ui.button("Tạo mẫu gói", on_click=create_dialog.open, icon="add").props("unelevated").classes("btn-success")
+                ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
 
     refresh()

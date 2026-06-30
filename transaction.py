@@ -225,15 +225,21 @@ def render():
     role = app.storage.user.get("role", "STAFF")
     loc_id = get_current_location_id()
 
-    ui.label("Bán hàng").classes("text-2xl font-bold mb-4")
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.icon("point_of_sale").classes("text-2xl")
+            ui.label("Bán hàng")
 
-    # Step 1: Search and select customer
-    with ui.row().classes("w-full items-end gap-2 mb-4 flex-wrap"):
-        search_input = ui.input("Tìm khách hàng (tên hoặc mã)").props("outlined").classes("w-full md:w-64")
-        ui.button("Tìm", on_click=lambda: search_customers(), icon="search").props("outlined")
+        # Step 1: Search and select customer
+        with ui.element("div").classes("custom-card p-4 mb-3"):
+            ui.label("👤 Chọn khách hàng").classes("section-header")
+            with ui.element("div").classes("search-bar mt-2"):
+                search_input = ui.input("Tìm khách hàng (tên hoặc mã)").props("outlined clearable dense").classes("flex-grow")
+                ui.button("Tìm", on_click=lambda: search_customers(), icon="search").props("outlined")
 
     customer_options = {}
-    customer_select = ui.select({}, label="Chọn khách hàng").props("outlined").classes("w-full mb-4")
+    with ui.element("div").classes("page-container"):
+        customer_select = ui.select({}, label="Chọn khách hàng").props("outlined dense").classes("w-full mb-4")
 
     def search_customers():
         with get_db() as conn:
@@ -258,8 +264,8 @@ def render():
         load_packages()
 
     # Customer packages info
-    pkg_info = ui.label().classes("text-sm text-blue-600 italic mt-2")
-    package_select = ui.select({}, label="Dùng gói (để trống nếu bán lẻ)").props("outlined").classes("w-full mb-2")
+    pkg_info = ui.label().classes("text-sm font-medium text-primary mt-1")
+    package_select = ui.select({}, label="Dùng gói (để trống nếu bán lẻ)").props("outlined dense").classes("w-full mb-2")
     package_item_options = {}
 
     def load_packages():
@@ -299,13 +305,13 @@ def render():
             (loc_id,),
         ).fetchall()
     drink_options = {r["id"]: f"{r['name']} ({r['price_per_serving']:,.0f}đ/ly)" for r in all_drinks}
-    drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined").classes("w-full mb-2")
+    drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
     if drink_options:
         drink_select.set_value(list(drink_options.keys())[0])
 
-    servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined").classes("w-full mb-2")
-    amount = ui.number("Số tiền (VNĐ)", value=0).props("outlined").classes("w-full mb-2")
-    notes = ui.input("Ghi chú").props("outlined").classes("w-full mb-4")
+    servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined dense").classes("w-full mb-2")
+    amount = ui.number("Số tiền (VNĐ)", value=0).props("outlined dense").classes("w-full mb-2")
+    notes = ui.input("Ghi chú").props("outlined dense").classes("w-full mb-4")
 
     err = ui.label().classes("text-red-500 text-sm mb-2")
     success = ui.label().classes("text-green-600 text-sm mb-2")
@@ -425,10 +431,11 @@ def render():
         except HTTPException as ex:
             err.set_text(f"Lỗi: {ex.detail}")
 
-    ui.button("Bán hàng", on_click=do_sale, icon="point_of_sale").props("unelevated").classes("w-full bg-green-600 text-white text-lg py-2 mb-6")
+    ui.button("Bán hàng", on_click=do_sale, icon="point_of_sale").props("unelevated").classes("w-full btn-success text-lg py-2 mb-3")
 
     # Today's transactions
-    ui.label("Giao dịch hôm nay").classes("text-xl font-bold mt-8 mb-4")
+    with ui.element("div").classes("custom-card p-4 mt-4"):
+        ui.label("🔁 Giao dịch hôm nay").classes("section-header")
     today_table = ui.table(
         columns=[
             {"name": "time", "label": "Giờ", "field": "time"},
@@ -441,7 +448,7 @@ def render():
         ],
         rows=[],
         row_key="id",
-    ).classes("w-full overflow-x-auto")
+    ).classes("w-full mt-2")
 
     def refresh_today_table():
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d") + "%"
@@ -472,7 +479,7 @@ def render():
         ]
         today_table.update()
 
-    ui.button("Làm mới", on_click=refresh_today_table, icon="refresh").props("outlined").classes("mb-4")
+    ui.button("Làm mới", on_click=refresh_today_table, icon="refresh").props("outlined").classes("mt-2")
 
     # Initial load
     search_customers()

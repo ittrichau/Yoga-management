@@ -244,7 +244,10 @@ def pt_page():
 
 def render():
     loc_id = get_current_location_id()
-    ui.label("Quản lý PT (Personal Trainer)").classes("text-2xl font-bold mb-4")
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("💪").classes("text-2xl")
+            ui.label("Quản lý PT (Personal Trainer)")
 
     with ui.tabs().classes("w-full") as tabs:
         tab_sessions = ui.tab("Buổi PT", icon="event")
@@ -257,11 +260,11 @@ def render():
 
 
 def render_sessions_tab(loc_id: int):
-    ui.label("Ghi nhận buổi PT").classes("text-lg font-bold mb-2")
+    ui.label("📝 Ghi nhận buổi PT").classes("section-header")
 
-    with ui.row().classes("w-full items-end gap-2 mb-4 flex-wrap"):
-        search_input = ui.input("Tìm khách hàng").props("outlined").classes("flex-1 min-w-64")
-        ui.button("Tìm", on_click=lambda: do_search(), icon="search").props("unelevated").classes("bg-blue-600 text-white")
+    with ui.element("div").classes("search-bar"):
+        search_input = ui.input("Tìm khách hàng (mã, tên, SĐT)").props("outlined clearable dense").classes("flex-grow")
+        ui.button("Tìm", on_click=lambda: do_search(), icon="search").props("outlined")
 
     customer_options = {}
     customer_select = ui.select({}, label="Chọn khách hàng").props("outlined").classes("w-full mb-4")
@@ -388,7 +391,7 @@ def render_sessions_tab(loc_id: int):
         refresh_table()
         err_label.set_text("")
 
-    ui.button("Ghi nhận", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full mb-6")
+    ui.button("Ghi nhận", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary w-full mt-2 mb-6")
 
     session_table = ui.table(
         columns=[
@@ -443,7 +446,7 @@ def render_rates_tab(loc_id: int):
         ui.label("Chỉ MANAGER trở lên mới quản lý được bảng giá PT.").classes("text-orange-600 italic")
         return
 
-    ui.label("Bảng giá PT").classes("text-lg font-bold mb-4")
+    ui.label("💰 Bảng giá PT").classes("section-header")
 
     rate_table = ui.table(
         columns=[
@@ -474,8 +477,8 @@ def render_rates_tab(loc_id: int):
         ]
         rate_table.update()
 
-    with ui.dialog() as rate_dialog, ui.card().classes("p-6 w-96"):
-        ui.label("Thêm bảng giá PT").classes("text-xl font-bold mb-4")
+    with ui.dialog() as rate_dialog, ui.card().classes("p-6 w-96 max-w-full"):
+        ui.label("💰 Thêm bảng giá PT").classes("section-header")
         rt_name = ui.input("Tên * (VD: PT Yoga 1-1 tại phòng)").props("outlined").classes("w-full mb-2")
         rt_loc = ui.select({"AT_GYM": "Tại phòng", "OUTSIDE": "Tại nhà KH"}, label="Loại", value="AT_GYM").props("outlined").classes("w-full mb-2")
         rt_type = ui.select({"PER_HOUR": "Theo giờ", "PER_SESSION": "Theo buổi", "PER_MONTH": "Theo tháng"}, label="Đơn vị", value="PER_HOUR").props("outlined").classes("w-full mb-2")
@@ -504,10 +507,11 @@ def render_rates_tab(loc_id: int):
             ui.notify("Bảng giá đã được tạo", type="positive")
 
         with ui.row().classes("gap-2"):
-            ui.button("Lưu", on_click=save, icon="save").props("unelevated").classes("bg-blue-600 text-white")
+            ui.button("Lưu", on_click=save, icon="save").props("unelevated").classes("btn-primary")
             ui.button("Đóng", on_click=rate_dialog.close, icon="close").props("outlined")
 
-    with ui.row().classes("gap-2 mb-4"):
-        ui.button("Thêm bảng giá", on_click=rate_dialog.open, icon="add").props("unelevated").classes("bg-green-600 text-white")
-        ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("gap-2 mb-3"):
+            ui.button("Thêm bảng giá", on_click=rate_dialog.open, icon="add").props("unelevated").classes("btn-success")
+            ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
     refresh()

@@ -190,15 +190,20 @@ def checkin_page():
 
 def render():
     loc_id = get_current_location_id()
-    ui.label("Check-in buổi tập").classes("text-2xl font-bold mb-4")
+
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("✅").classes("text-2xl")
+            ui.label("Check-in buổi tập")
 
     # Search customer
-    with ui.row().classes("w-full items-end gap-2 mb-4 flex-wrap"):
-        search_input = ui.input("Tìm khách hàng (mã, tên, SĐT)").props("outlined autofocus").classes("flex-1 min-w-64")
-        ui.button("Tìm", on_click=lambda: do_search(), icon="search").props("unelevated").classes("bg-blue-600 text-white")
+    with ui.element("div").classes("page-container"):
+        with ui.element("div").classes("search-bar"):
+            search_input = ui.input("Tìm khách hàng (mã, tên, SĐT)").props("outlined autofocus clearable dense").classes("flex-grow")
+            ui.button("Tìm", on_click=lambda: do_search(), icon="search").props("outlined")
 
     customer_options = {}
-    customer_select = ui.select({}, label="Chọn khách hàng").props("outlined").classes("w-full mb-4")
+    customer_select = ui.select({}, label="Chọn khách hàng").props("outlined dense").classes("w-full mb-3")
 
     def do_search():
         with get_db() as conn:
@@ -256,7 +261,7 @@ def render():
             return
 
         with info_card:
-            ui.label(f"Khách hàng: {customer['full_name']} ({customer['code']})").classes("text-lg font-bold mb-2")
+            ui.label(f"👤 {customer['full_name']} ({customer['code']})").classes("section-header")
             if not packages:
                 ui.label("⚠️ Khách chưa có gói nào đang hoạt động.").classes("text-orange-600 italic")
                 return
@@ -277,16 +282,16 @@ def render():
                 end_info = f" | Hết hạn: {pkg['end_date']}" if pkg.get("end_date") else ""
                 expired = pkg.get("end_date") and pkg["end_date"] < today
                 color = "red" if expired else "blue"
-                with ui.card().classes(f"w-full p-4 mb-2 border-2 border-{color}-200"):
+                with ui.element("div").classes("custom-card p-4 mb-2"):
                     ui.label(f"📦 {pkg['name'] or 'Gói #'+str(pkg['id'])}").classes("text-base font-bold")
                     ui.label(
-                        f"Tiền: {pkg['total_amount']:,.0f}đ{sessions_info}{end_info}"
-                    ).classes("text-sm text-gray-700")
+                        f"💰 {pkg['total_amount']:,.0f}đ{sessions_info}{end_info}"
+                    ).classes("text-sm text-gray-600 mt-1")
                     items_str = ", ".join(
                         f"{it['drink_name']}: {it['remaining_servings']:.0f}/{it['total_servings']:.0f} ly"
                         for it in items
                     )
-                    ui.label(f"Đồ uống: {items_str}").classes("text-sm text-gray-700")
+                    ui.label(f"🥤 {items_str}").classes("text-sm text-gray-600")
                     if expired:
                         ui.label("⛔ GÓI ĐÃ HẾT HẠN").classes("text-red-600 font-bold")
                         continue
@@ -310,7 +315,7 @@ def render():
                         return do
                     ui.button("✓ Check-in buổi tập", on_click=make_checkin(), icon="check_circle").props(
                         "unelevated"
-                    ).classes("bg-green-600 text-white mt-2")
+                    ).classes("btn-success mt-2")
 
     def _do_checkin_api(pkg_id, item_id, drink_id):
         """Call the checkin API synchronously via the same code path."""

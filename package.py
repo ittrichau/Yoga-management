@@ -228,13 +228,19 @@ def render():
     role = app.storage.user.get("role", "STAFF")
     loc_id = get_current_location_id()
 
-    ui.label("Quản lý gói trả trước").classes("text-2xl font-bold mb-4")
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("📦").classes("text-2xl")
+            ui.label("Quản lý gói tập")
 
     # Search customer
-    search_input = ui.input("Tìm theo tên hoặc mã khách hàng").props("outlined").classes("w-full mb-4")
+    with ui.element("div").classes("page-container"):
+        with ui.element("div").classes("search-bar"):
+            search_input = ui.input("Tìm theo tên hoặc mã khách hàng").props("outlined clearable dense").classes("flex-grow")
+            ui.button("Tìm khách hàng", on_click=search_customers, icon="search").props("outlined")
     customer_select_options = {}
 
-    customer_select = ui.select({}, label="Chọn khách hàng").props("outlined").classes("w-full mb-4")
+    customer_select = ui.select({}, label="Chọn khách hàng").props("outlined dense").classes("w-full mb-3")
 
     def search_customers():
         with get_db() as conn:
@@ -256,7 +262,11 @@ def render():
         customer_select.set_options(customer_select_options)
 
     search_input.on("keyup.enter", search_customers)
-    ui.button("Tìm khách hàng", on_click=search_customers, icon="search").props("outlined").classes("mb-4")
+
+    with ui.element("div").classes("mb-3"):
+        with ui.row().classes("gap-2"):
+            ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
+            ui.button("Tạo gói tập", on_click=create_dialog.open, icon="shopping_cart").props("unelevated").classes("btn-success")
 
     package_table = ui.table(
         columns=[
@@ -268,7 +278,7 @@ def render():
         ],
         rows=[],
         row_key="id",
-    ).classes("w-full overflow-x-auto")
+    ).classes("w-full")
 
     def refresh():
         customer_id = customer_select.value
