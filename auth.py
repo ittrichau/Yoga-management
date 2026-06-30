@@ -57,8 +57,11 @@ def render_navbar():
                 ui.link("Đồ uống", "/drinks").classes("text-white hover:underline")
                 ui.link("Nguyên liệu", "/ingredients").classes("text-white hover:underline")
                 ui.link("Gói trả trước", "/packages").classes("text-white hover:underline")
-                ui.link("Bán hàng", "/sales").classes("text-white hover:underline")
+                ui.link("Check-in", "/checkin").classes("text-white hover:underline bg-yellow-500 px-2 rounded")
+                ui.link("PT", "/pt").classes("text-white hover:underline")
                 if role in ("MANAGER", "OWNER"):
+                    ui.link("Nâng cấp gói", "/packages/upgrade").classes("text-white hover:underline")
+                    ui.link("Mẫu gói", "/package-templates").classes("text-white hover:underline")
                     ui.link("Nhật ký", "/audit").classes("text-white hover:underline")
                 if role == "OWNER":
                     ui.link("Người dùng", "/users").classes("text-white hover:underline")

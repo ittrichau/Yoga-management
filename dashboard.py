@@ -41,6 +41,62 @@ def get_stats(user: dict = Depends(get_current_user)):
     }
 
 
+@router.get("/expiring-packages")
+def get_expiring_packages(user: dict = Depends(get_current_user)):
+    """Packages expiring within 7 days or low on sessions, in the current location."""
+    loc_id = get_current_location_id()
+    today = _today_str()
+    with get_db() as conn:
+        where = "p.is_active = 1"
+        params = []
+        if loc_id:
+            where += " AND p.location_id = ?"
+            params.append(loc_id)
+        rows = conn.execute(
+            f"""SELECT p.id, p.name, p.end_date, p.total_sessions, p.remaining_sessions,
+                       p.total_amount, c.full_name as customer_name, c.code as customer_code,
+                       (SELECT SUM(remaining_servings) FROM package_items WHERE package_id = p.id) as remaining_drinks
+                FROM packages p
+                JOIN customers c ON c.id = p.customer_id
+                WHERE {where}
+                ORDER BY p.end_date ASC NULLS LAST""",
+            params,
+        ).fetchall() if False else conn.execute(
+            f"""SELECT p.id, p.name, p.end_date, p.total_sessions, p.remaining_sessions,
+                       p.total_amount, c.full_name as customer_name, c.code as customer_code,
+                       (SELECT SUM(remaining_servings) FROM package_items WHERE package_id = p.id) as remaining_drinks
+                FROM packages p
+                JOIN customers c ON c.id = p.customer_id
+                WHERE {where}
+                ORDER BY p.end_date IS NULL, p.end_date ASC""",
+            params,
+        ).fetchall()
+    alerts = []
+    for r in rows:
+        reasons = []
+        if r.get("end_date"):
+            days_left = (datetime.strptime(r["end_date"], "%Y-%m-%d") -
+                         datetime.strptime(today, "%Y-%m-%d")).days
+            if days_left < 0:
+                reasons.append(f"Đã hết hạn {abs(days_left)} ngày")
+            elif days_left <= 7:
+                reasons.append(f"Còn {days_left} ngày hết hạn")
+        if r.get("total_sessions", 0) > 0 and r.get("remaining_sessions", 0) <= 3:
+            reasons.append(f"Chỉ còn {r['remaining_sessions']}/{r['total_sessions']} buổi")
+        if reasons:
+            alerts.append({
+                "package_id": r["id"],
+                "package_name": r["name"] or f"Gói #{r['id']}",
+                "customer": f"{r['customer_code']} - {r['customer_name']}",
+                "end_date": r.get("end_date"),
+                "remaining_sessions": r.get("remaining_sessions", 0),
+                "total_sessions": r.get("total_sessions", 0),
+                "remaining_drinks": r.get("remaining_drinks") or 0,
+                "reasons": reasons,
+            })
+    return alerts
+
+
 @router.get("/fraud-alerts")
 def get_fraud_alerts(user: dict = Depends(require_role("MANAGER"))):
     today = _today_str() + "%"
@@ -187,6 +243,14 @@ def render():
             "SELECT COUNT(*) as cnt FROM ingredients WHERE is_active = 1 AND current_stock <= min_stock AND location_id = ?",
             (loc_id,),
         ).fetchone()["cnt"]
+        d["today_pt_revenue"] = conn.execute(
+            "SELECT COALESCE(SUM(total_amount), 0) as total FROM pt_sessions WHERE location_id = ? AND session_date = ?",
+            (loc_id, today_prefix[:-1]),
+        ).fetchone()["total"]
+        d["month_pt_revenue"] = conn.execute(
+            "SELECT COALESCE(SUM(total_amount), 0) as total FROM pt_sessions WHERE location_id = ? AND session_date LIKE ?",
+            (loc_id, month_prefix),
+        ).fetchone()["total"]
         d["low_stock_items"] = conn.execute(
             "SELECT name, unit, current_stock, min_stock FROM ingredients WHERE is_active = 1 AND current_stock <= min_stock AND location_id = ? ORDER BY name",
             (loc_id,),
@@ -226,12 +290,16 @@ def render():
 
     # Revenue summary
     with ui.row().classes("w-full gap-4 mb-8 flex-wrap"):
-        with ui.card().classes("w-full md:w-1/2 p-4 bg-indigo-50"):
+        with ui.card().classes("w-full md:w-1/3 p-4 bg-indigo-50"):
             ui.label("Doanh thu tuần này").classes("text-lg text-indigo-700")
             ui.label(f"{d['week_revenue']:,.0f}đ").classes("text-2xl font-bold text-indigo-800")
-        with ui.card().classes("w-full md:w-1/2 p-4 bg-pink-50"):
+        with ui.card().classes("w-full md:w-1/3 p-4 bg-pink-50"):
             ui.label("Doanh thu tháng này").classes("text-lg text-pink-700")
             ui.label(f"{d['month_revenue']:,.0f}đ").classes("text-2xl font-bold text-pink-800")
+        with ui.card().classes("w-full md:w-1/3 p-4 bg-orange-50"):
+            ui.label("Doanh thu PT hôm nay").classes("text-lg text-orange-700")
+            ui.label(f"{d['today_pt_revenue']:,.0f}đ").classes("text-2xl font-bold text-orange-800")
+            ui.label(f"Tháng này: {d['month_pt_revenue']:,.0f}đ").classes("text-sm text-orange-600")
 
     # Low stock alerts
     if d["low_stock_count"] > 0:
@@ -272,6 +340,44 @@ def render():
         for r in d["recent_tx"]
     ]
     tx_table.update()
+
+    # Expiring packages
+    with get_db() as conn:
+        expiring = conn.execute(
+            """SELECT p.id, p.name, p.end_date, p.total_sessions, p.remaining_sessions,
+                       c.full_name as customer_name, c.code as customer_code,
+                       (SELECT SUM(remaining_servings) FROM package_items WHERE package_id = p.id) as remaining_drinks
+                FROM packages p
+                JOIN customers c ON c.id = p.customer_id
+                WHERE p.is_active = 1 AND p.location_id = ? AND p.end_date IS NOT NULL
+                ORDER BY p.end_date ASC""",
+            (loc_id,),
+        ).fetchall()
+    today_d = datetime.strptime(today_prefix[:-1], "%Y-%m-%d")
+    expiring_alerts = []
+    for r in expiring:
+        ed = datetime.strptime(r["end_date"], "%Y-%m-%d")
+        days_left = (ed - today_d).days
+        reasons = []
+        if days_left < 0:
+            reasons.append(f"Quá hạn {abs(days_left)} ngày")
+        elif days_left <= 7:
+            reasons.append(f"Còn {days_left} ngày hết hạn")
+        if r.get("total_sessions", 0) > 0 and r.get("remaining_sessions", 0) <= 3:
+            reasons.append(f"Chỉ còn {r['remaining_sessions']}/{r['total_sessions']} buổi")
+        if reasons:
+            expiring_alerts.append({
+                "package_id": r["id"],
+                "name": r["name"] or f"Gói #{r['id']}",
+                "customer": f"{r['customer_code']} - {r['customer_name']}",
+                "end_date": r["end_date"],
+                "reasons": ", ".join(reasons),
+            })
+    if expiring_alerts:
+        with ui.card().classes("w-full p-4 mb-6 bg-orange-50 border-2 border-orange-300"):
+            ui.label(f"!!! {len(expiring_alerts)} gói sắp hết hạn hoặc sắp hết buổi").classes("text-lg font-bold text-orange-700")
+            for a in expiring_alerts[:10]:
+                ui.label(f"* {a['customer']} - {a['name']} ({a['end_date']}): {a['reasons']}").classes("text-sm text-orange-700 ml-4")
 
     # Fraud alerts for MANAGER+
     if role in ("MANAGER", "OWNER"):

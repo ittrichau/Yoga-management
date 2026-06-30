@@ -3,15 +3,19 @@ import os
 
 from nicegui import ui, app
 
-from database import init_db, seed_defaults
+from database import init_db, migrate_schema, seed_defaults
 from auth import router as auth_router
 from customer import router as customer_router
+from checkin import router as checkin_router
 from drink import router as drink_router
 from ingredient import router as ingredient_router
 from package import router as package_router
+from package_template import router as package_template_router
+from package_upgrade import router as package_upgrade_router
 from transaction import router as transaction_router
 from audit import router as audit_router
 from dashboard import router as dashboard_router
+from pt import router as pt_router
 
 
 @ui.page("/")
@@ -32,17 +36,22 @@ def index():
 if __name__ in {"__main__", "__mp_main__"}:
     # Initialize database
     init_db()
+    migrate_schema()
     seed_defaults()
 
     # Register API routers
     app.include_router(auth_router)
     app.include_router(customer_router)
+    app.include_router(checkin_router)
     app.include_router(drink_router)
     app.include_router(ingredient_router)
     app.include_router(package_router)
+    app.include_router(package_template_router)
+    app.include_router(package_upgrade_router)
     app.include_router(transaction_router)
     app.include_router(audit_router)
     app.include_router(dashboard_router)
+    app.include_router(pt_router)
 
     port = int(os.environ.get("PORT", "8080"))
     host = os.environ.get("HOST", "0.0.0.0")

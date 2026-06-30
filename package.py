@@ -17,6 +17,10 @@ class PackageCreate(BaseModel):
     name: str = ""
     total_amount: float = 0
     items: list[dict] = []  # [{drink_id: int, total_servings: float}]
+    package_template_id: int | None = None
+    duration_days: int = 0
+    start_date: str | None = None
+    total_sessions: int = 0
 
 class PackageItemAdd(BaseModel):
     drink_id: int
@@ -90,28 +94,72 @@ def get_package(package_id: int, user: dict = Depends(get_current_user)):
 @router.post("", status_code=201)
 def create_package(data: PackageCreate, user: dict = Depends(get_current_user)):
     """Create a new prepaid package. Any authenticated user can create."""
-    # Determine location from customer
     with get_db() as conn:
         customer = conn.execute("SELECT id, location_id FROM customers WHERE id = ? AND is_active = 1", (data.customer_id,)).fetchone()
         if customer is None:
             raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng hoặc đã bị vô hiệu hóa")
         loc_id = customer["location_id"]
+
+        # Resolve template to compute start_date, end_date, total_sessions
+        template = None
+        total_sessions = data.total_sessions or 0
+        duration_days = data.duration_days or 0
+        total_drinks = sum(item.get("total_servings", 0) for item in data.items)
+        if data.package_template_id:
+            template = conn.execute(
+                "SELECT * FROM package_templates WHERE id = ? AND location_id = ?",
+                (data.package_template_id, loc_id),
+            ).fetchone()
+            if template is None:
+                raise HTTPException(status_code=404, detail="Không tìm thấy mẫu gói")
+            total_sessions = template["total_sessions"]
+            duration_days = template["duration_days"]
+            total_drinks = template["total_drinks"]
+
+        start_date = data.start_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        end_date = None
+        if duration_days > 0:
+            from datetime import timedelta
+            sd = datetime.strptime(start_date, "%Y-%m-%d")
+            end_date = (sd + timedelta(days=duration_days)).strftime("%Y-%m-%d")
+
         cur = conn.execute(
-            "INSERT INTO packages (location_id, customer_id, name, total_amount, created_by) VALUES (?, ?, ?, ?, ?)",
-            (loc_id, data.customer_id, data.name, data.total_amount, user["id"]),
+            """INSERT INTO packages
+               (location_id, customer_id, name, total_amount,
+                package_template_id, duration_days, start_date, end_date,
+                total_sessions, remaining_sessions, created_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (loc_id, data.customer_id, data.name, data.total_amount,
+             data.package_template_id, duration_days, start_date, end_date,
+             total_sessions, total_sessions, user["id"]),
         )
         package_id = cur.lastrowid
-        for item in data.items:
-            conn.execute(
-                "INSERT INTO package_items (package_id, drink_id, total_servings, remaining_servings) VALUES (?, ?, ?, ?)",
-                (package_id, item.get("drink_id"), item.get("total_servings", 0), item.get("total_servings", 0)),
-            )
+
+        # Use explicit items, or fall back to first drink in location if template + no items
+        items_to_create = data.items
+        if not items_to_create and template and total_drinks > 0:
+            first_drink = conn.execute(
+                "SELECT id FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY id LIMIT 1",
+                (loc_id,),
+            ).fetchone()
+            if first_drink:
+                items_to_create = [{"drink_id": first_drink["id"], "total_servings": total_drinks}]
+
+        for item in items_to_create:
+            drink_id = item.get("drink_id")
+            qty = item.get("total_servings", 0)
+            if drink_id and qty > 0:
+                conn.execute(
+                    "INSERT INTO package_items (package_id, drink_id, total_servings, remaining_servings) VALUES (?, ?, ?, ?)",
+                    (package_id, drink_id, qty, qty),
+                )
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                VALUES (?, ?, 'create', 'package', ?, ?)""",
-            (loc_id, user["id"], package_id, f'{{"customer_id": {data.customer_id}, "name": "{data.name}", "amount": {data.total_amount}}}'),
+            (loc_id, user["id"], package_id,
+             f'{{"customer_id": {data.customer_id}, "name": "{data.name}", "amount": {data.total_amount}, "template_id": {data.package_template_id}, "duration_days": {duration_days}, "total_sessions": {total_sessions}}}'),
         )
-    return {"id": package_id, "message": "Gói đã được tạo"}
+    return {"id": package_id, "message": "Gói đã được tạo", "start_date": start_date, "end_date": end_date}
 
 
 @router.get("/customer/{customer_id}/packages")
