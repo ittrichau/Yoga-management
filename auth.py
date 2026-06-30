@@ -51,21 +51,35 @@ def render_navbar():
                     def show_loc():
                         loc_dialog.open()
                     ui.button("Đổi cơ sở", icon="swap_horiz", on_click=show_loc).props("flat color=white dense")
-            with ui.row().classes("items-center gap-x-3 gap-y-1 flex-wrap text-xs md:text-sm"):
-                ui.link("Bảng điều khiển", "/").classes("text-white hover:underline")
-                ui.link("Khách hàng", "/customers").classes("text-white hover:underline")
-                ui.link("Đồ uống", "/drinks").classes("text-white hover:underline")
-                ui.link("Nguyên liệu", "/ingredients").classes("text-white hover:underline")
-                ui.link("Gói trả trước", "/packages").classes("text-white hover:underline")
-                ui.link("Check-in", "/checkin").classes("text-white hover:underline bg-yellow-500 px-2 rounded")
-                ui.link("PT", "/pt").classes("text-white hover:underline")
+            with ui.row().classes("items-center gap-x-2 gap-y-1 flex-wrap text-xs md:text-sm"):
+                ui.link("📊 Bảng điều khiển", "/").classes("text-white hover:underline px-2")
+                # Kinh doanh dropdown
+                with ui.button("👥 Kinh doanh ▾").props("flat color=white dense"):
+                    with ui.menu():
+                        ui.menu_item("Khách hàng", on_click=lambda: ui.navigate.to("/customers"))
+                        ui.menu_item("Check-in 🟡", on_click=lambda: ui.navigate.to("/checkin"))
+                        ui.menu_item("Gói trả trước", on_click=lambda: ui.navigate.to("/packages"))
+                        ui.menu_item("PT", on_click=lambda: ui.navigate.to("/pt"))
+                        if role in ("MANAGER", "OWNER"):
+                            ui.separator()
+                            ui.menu_item("Nâng cấp gói", on_click=lambda: ui.navigate.to("/packages/upgrade"))
+                # Kho dropdown
+                with ui.button("🥤 Kho ▾").props("flat color=white dense"):
+                    with ui.menu():
+                        ui.menu_item("Đồ uống", on_click=lambda: ui.navigate.to("/drinks"))
+                        ui.menu_item("Nguyên liệu", on_click=lambda: ui.navigate.to("/ingredients"))
+                        if role in ("MANAGER", "OWNER"):
+                            ui.separator()
+                            ui.menu_item("Mẫu gói", on_click=lambda: ui.navigate.to("/package-templates"))
+                # Hệ thống dropdown
                 if role in ("MANAGER", "OWNER"):
-                    ui.link("Nâng cấp gói", "/packages/upgrade").classes("text-white hover:underline")
-                    ui.link("Mẫu gói", "/package-templates").classes("text-white hover:underline")
-                    ui.link("Nhật ký", "/audit").classes("text-white hover:underline")
-                if role == "OWNER":
-                    ui.link("Người dùng", "/users").classes("text-white hover:underline")
-                    ui.link("Cơ sở", "/locations").classes("text-white hover:underline")
+                    with ui.button("⚙️ Hệ thống ▾").props("flat color=white dense"):
+                        with ui.menu():
+                            ui.menu_item("Nhật ký", on_click=lambda: ui.navigate.to("/audit"))
+                            if role == "OWNER":
+                                ui.separator()
+                                ui.menu_item("Người dùng", on_click=lambda: ui.navigate.to("/users"))
+                                ui.menu_item("Cơ sở", on_click=lambda: ui.navigate.to("/locations"))
 
     # Switcher dialog
     with ui.dialog() as loc_dialog, ui.card().classes("p-6 w-80"):
