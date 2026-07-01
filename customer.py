@@ -68,19 +68,20 @@ def get_customer(customer_id: int, user: dict = Depends(get_current_user)):
 
 @router.post("", status_code=201)
 def create_customer(data: CustomerCreate, user: dict = Depends(get_current_user)):
+    location_id = get_current_location_id()
     with get_db() as conn:
-        existing = conn.execute("SELECT id FROM customers WHERE code = ? AND location_id = ?", (data.code, data.get("location_id"))).fetchone()
+        existing = conn.execute("SELECT id FROM customers WHERE code = ? AND location_id = ?", (data.code, location_id)).fetchone()
         if existing:
             raise HTTPException(status_code=400, detail="Mã KH đã tồn tại tại cơ sở này")
         cur = conn.execute(
             """INSERT INTO customers (location_id, code, full_name, phone, email, notes, created_by)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (data.get("location_id"), data.code, data.full_name, data.phone, data.email, data.notes, user["id"]),
+            (location_id, data.code, data.full_name, data.phone, data.email, data.notes, user["id"]),
         )
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                VALUES (?, ?, 'create', 'customer', ?, ?)""",
-            (data.get("location_id"), user["id"], cur.lastrowid, f'{{"code":"{data.code}","name":"{data.full_name}"}}'),
+            (location_id, user["id"], cur.lastrowid, f'{{"code":"{data.code}","name":"{data.full_name}"}}'),
         )
     return {"id": cur.lastrowid, "message": "Khách hàng đã được tạo"}
 
@@ -142,7 +143,6 @@ def customers_page():
 
 
 def render():
-    role = app.storage.user.get("role", "STAFF")
     loc_id = get_current_location_id()
 
     with ui.element("div").classes("page-container"):
@@ -150,11 +150,7 @@ def render():
             ui.label("👥").classes("text-2xl")
             ui.label("Quản lý khách hàng")
 
-        # ── Search + Add ──
-        with ui.element("div").classes("search-bar"):
-            search_input = ui.input("Tìm theo mã, tên, hoặc số điện thoại").props("outlined clearable dense").classes("flex-grow")
-            ui.button("Tìm", icon="search", on_click=refresh).props("outlined")
-            ui.button("Thêm khách hàng", icon="person_add", on_click=create_dialog.open).props("unelevated").classes("btn-success")
+        search_input = ui.input("Tìm theo mã, tên, hoặc số điện thoại").props("outlined clearable dense").classes("flex-grow")
 
         customer_table = ui.table(
             columns=[
@@ -167,7 +163,7 @@ def render():
             row_key="id",
         ).classes("w-full")
 
-        def refresh():
+        def refresh_customers():
             with get_db() as conn:
                 search = search_input.value
                 if search:
@@ -181,15 +177,10 @@ def render():
                         "SELECT id, code, full_name, phone, email, notes FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name",
                         (loc_id,),
                     ).fetchall()
-            result = []
-            for r in rows:
-                d = dict(r)
-                d["action"] = d["id"]
-                result.append(d)
-            customer_table.rows = result
+
+            customer_table.rows = [{**dict(r), "action": r["id"]} for r in rows]
             customer_table.update()
 
-        # Create dialog
         with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
             ui.label("Thêm khách hàng").classes("text-xl font-bold mb-4")
             code = ui.input("Mã KH *").props("outlined dense").classes("w-full mb-2")
@@ -200,18 +191,22 @@ def render():
             err = ui.label().classes("text-red-500 text-sm")
 
             def handle_create():
+                err.set_text("")
                 if not code.value or not name.value:
                     err.set_text("Vui lòng nhập mã KH và họ tên")
                     return
+
                 user_id = app.storage.user.get("user_id", 1)
                 with get_db() as conn:
                     existing = conn.execute(
-                        "SELECT id FROM customers WHERE code = ? AND location_id = ?", (code.value, loc_id)
+                        "SELECT id FROM customers WHERE code = ? AND location_id = ?",
+                        (code.value, loc_id),
                     ).fetchone()
                     if existing:
                         err.set_text("Mã KH đã tồn tại")
                         return
-                    conn.execute(
+
+                    cur = conn.execute(
                         """INSERT INTO customers (location_id, code, full_name, phone, email, notes, created_by)
                            VALUES (?, ?, ?, ?, ?, ?, ?)""",
                         (loc_id, code.value, name.value, phone.value, email.value, notes.value, user_id),
@@ -219,15 +214,20 @@ def render():
                     conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                            VALUES (?, ?, 'create', 'customer', ?, ?)""",
-                        (loc_id, user_id, conn.lastrowid, f'{{"code":"{code.value}","name":"{name.value}"}}'),
+                        (loc_id, user_id, cur.lastrowid, f'{{"code":"{code.value}","name":"{name.value}"}}'),
                     )
+
+                code.value = ""
+                name.value = ""
+                phone.value = ""
+                email.value = ""
+                notes.value = ""
                 create_dialog.close()
-                refresh()
+                refresh_customers()
                 ui.notify("Đã thêm khách hàng", type="positive")
 
             ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
 
-        # Edit dialog
         with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
             ui.label("Sửa khách hàng").classes("text-xl font-bold mb-4")
             edit_id = ui.number("edit_id").props("hidden")
@@ -238,31 +238,49 @@ def render():
             edit_err = ui.label().classes("text-red-500 text-sm")
 
             def handle_edit():
+                edit_err.set_text("")
                 if not e_name.value:
                     edit_err.set_text("Vui lòng nhập họ tên")
                     return
+
                 user_id = app.storage.user.get("user_id", 1)
+                customer_id = int(edit_id.value or 0)
                 with get_db() as conn:
                     conn.execute(
-                        "UPDATE customers SET full_name = ?, phone = ?, email = ?, notes = ?, updated_at = datetime('now','localtime') WHERE id = ?",
-                        (e_name.value, e_phone.value, e_email.value, e_notes.value, int(edit_id.value or 0)),
+                        "UPDATE customers SET full_name = ?, phone = ?, email = ?, notes = ?, updated_at = datetime('now','localtime') WHERE id = ? AND location_id = ?",
+                        (e_name.value, e_phone.value, e_email.value, e_notes.value, customer_id, loc_id),
                     )
                     conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                            VALUES (?, ?, 'update', 'customer', ?, ?)""",
-                        (loc_id, user_id, int(edit_id.value or 0), f'{{"name":"{e_name.value}"}}'),
+                        (loc_id, user_id, customer_id, f'{{"name":"{e_name.value}"}}'),
                     )
+
                 edit_dialog.close()
-                refresh()
+                refresh_customers()
                 ui.notify("Đã cập nhật khách hàng", type="positive")
 
             ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
 
+        def open_edit(row):
+            edit_id.value = row.get("id")
+            e_name.value = row.get("full_name", "")
+            e_phone.value = row.get("phone", "")
+            e_email.value = row.get("email", "")
+            e_notes.value = row.get("notes", "")
+            edit_err.set_text("")
+            edit_dialog.open()
+
+        with ui.element("div").classes("search-bar"):
+            search_input.move()
+            ui.button("Tìm", icon="search", on_click=refresh_customers).props("outlined")
+            ui.button("Thêm khách hàng", icon="person_add", on_click=create_dialog.open).props("unelevated").classes("btn-success")
+
         with ui.row().classes("gap-2 mb-4"):
             ui.button("Thêm khách hàng", on_click=create_dialog.open, icon="person_add").props("unelevated").classes("btn-success")
-            ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
+            ui.button("Làm mới", on_click=refresh_customers, icon="refresh").props("outlined")
 
-        search_input.on("keyup.enter", refresh)
+        search_input.on("keyup.enter", refresh_customers)
 
         customer_table.add_slot(
             "body-cell-action",
@@ -276,4 +294,4 @@ def render():
         )
         customer_table.on("edit_customer", lambda e: open_edit(e.args))
 
-        refresh()
+        refresh_customers()
