@@ -322,6 +322,7 @@ header.q-header .text-white\/80 {
     font-weight: 700;
     border: 1px solid rgba(143, 175, 157, 0.28);
     box-shadow: var(--shadow-sm);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 .location-badge.active {
     background: var(--success-bg);
@@ -330,6 +331,34 @@ header.q-header .text-white\/80 {
 .location-badge.inactive {
     background: var(--danger-bg);
     color: var(--danger);
+}
+.location-badge.clickable {
+    cursor: pointer;
+    user-select: none;
+}
+.location-badge.clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary);
+}
+.location-badge.clickable:active {
+    transform: translateY(0);
+}
+.location-badge.pulse {
+    animation: location-pulse 2.4s ease-in-out infinite;
+}
+@keyframes location-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(143, 175, 157, 0.45), var(--shadow-sm); }
+    50%      { box-shadow: 0 0 0 6px rgba(143, 175, 157, 0.0), var(--shadow-sm); }
+}
+.location-badge .badge-swap-icon {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.location-badge.clickable:hover .badge-swap-icon {
+    transform: rotate(180deg);
+    opacity: 1;
 }
 
 /* ── Chip / Pill status ────────────────────────────────────────── */

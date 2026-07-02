@@ -511,15 +511,33 @@ def render_navbar():
     loc_name = get_current_location_name()
     loc_dialog = render_location_dialog()
 
+    # Decide if the badge should be clickable: user has >1 assigned location
+    user_locs = get_user_locations(app.storage.user.get("user_id", 0))
+    has_multiple_locs = len(user_locs) > 1
+    badge_classes = f"location-badge {'active' if loc_id else 'inactive'}"
+    if has_multiple_locs:
+        badge_classes += " clickable pulse"
+    badge_tooltip = (
+        f"Đổi sang cơ sở khác ({len(user_locs)} cơ sở)"
+        if has_multiple_locs
+        else "Cơ sở làm việc hiện tại"
+    )
+
     with ui.header().props("elevated").classes("items-center justify-between"):
         with ui.row().classes("items-center gap-2"):
             ui.label("🧘").classes("text-xl md:text-2xl")
             ui.label("Yoga Management").classes("text-base md:text-lg font-bold")
 
         with ui.row().classes("items-center gap-1 md:gap-2"):
-            with ui.element("div").classes(f"location-badge {'active' if loc_id else 'inactive'} hidden sm:inline-flex"):
+            badge = ui.element("div").classes(badge_classes + " hidden sm:inline-flex")
+            if has_multiple_locs:
+                badge.on("click", loc_dialog.open)
+            badge.tooltip(badge_tooltip)
+            with badge:
                 ui.label("📍").classes("text-xs")
                 ui.label(loc_name).classes("text-xs font-semibold")
+                if has_multiple_locs:
+                    ui.label("⇄").classes("badge-swap-icon text-xs")
 
             ui.label(f"👤 {username}").classes("hidden lg:block text-xs text-gray-600")
 

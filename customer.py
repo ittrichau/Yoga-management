@@ -25,50 +25,56 @@ class CustomerUpdate(BaseModel):
 
 @router.get("")
 def list_customers(search: str = "", location_id: int | None = None, user: dict = Depends(get_current_user)):
+    location_id = location_id or get_current_location_id()
+    if not location_id:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở")
+
     with get_db() as conn:
         if search:
             like = f"%{search}%"
-            if location_id:
-                rows = conn.execute(
-                    """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
-                       FROM customers WHERE is_active = 1 AND location_id = ? AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?)
-                       ORDER BY full_name""",
-                    (location_id, like, like, like),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
-                       FROM customers WHERE is_active = 1 AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?)
-                       ORDER BY full_name""",
-                    (like, like, like),
-                ).fetchall()
+            rows = conn.execute(
+                """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
+                   FROM customers
+                   WHERE is_active = 1
+                     AND location_id = ?
+                     AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?)
+                   ORDER BY full_name""",
+                (location_id, like, like, like),
+            ).fetchall()
         else:
-            if location_id:
-                rows = conn.execute(
-                    """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
-                       FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name""",
-                    (location_id,),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
-                       FROM customers WHERE is_active = 1 ORDER BY full_name"""
-                ).fetchall()
+            rows = conn.execute(
+                """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
+                   FROM customers
+                   WHERE is_active = 1
+                     AND location_id = ?
+                   ORDER BY full_name""",
+                (location_id,),
+            ).fetchall()
     return [dict(r) for r in rows]
 
 
 @router.get("/{customer_id}")
 def get_customer(customer_id: int, user: dict = Depends(get_current_user)):
+    current_location_id = get_current_location_id()
+    if not current_location_id:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở")
+
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM customers WHERE id = ?", (customer_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM customers WHERE id = ? AND location_id = ?",
+            (customer_id, current_location_id),
+        ).fetchone()
     if row is None:
-        raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng")
+        raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng tại cơ sở hiện tại")
     return dict(row)
 
 
 @router.post("", status_code=201)
 def create_customer(data: CustomerCreate, user: dict = Depends(get_current_user)):
     location_id = get_current_location_id()
+    if not location_id:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở trước khi thêm khách hàng")
+
     with get_db() as conn:
         existing = conn.execute("SELECT id FROM customers WHERE code = ? AND location_id = ?", (data.code, location_id)).fetchone()
         if existing:
@@ -88,10 +94,17 @@ def create_customer(data: CustomerCreate, user: dict = Depends(get_current_user)
 
 @router.put("/{customer_id}")
 def update_customer(customer_id: int, data: CustomerUpdate, user: dict = Depends(require_role("MANAGER"))):
+    current_location_id = get_current_location_id()
+    if not current_location_id:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở")
+
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM customers WHERE id = ?", (customer_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM customers WHERE id = ? AND location_id = ?",
+            (customer_id, current_location_id),
+        ).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng")
+            raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng tại cơ sở hiện tại")
         updates = {}
         for field in ["full_name", "phone", "email", "notes"]:
             val = getattr(data, field)
@@ -101,8 +114,8 @@ def update_customer(customer_id: int, data: CustomerUpdate, user: dict = Depends
             return {"message": "Không có thay đổi"}
         updates["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         set_clause = ", ".join(f"{k} = ?" for k in updates)
-        values = list(updates.values()) + [customer_id]
-        conn.execute(f"UPDATE customers SET {set_clause} WHERE id = ?", values)
+                values = list(updates.values()) + [customer_id, current_location_id]
+                conn.execute(f"UPDATE customers SET {set_clause} WHERE id = ? AND location_id = ?", values)
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                VALUES (?, ?, 'update', 'customer', ?, ?)""",
@@ -113,12 +126,17 @@ def update_customer(customer_id: int, data: CustomerUpdate, user: dict = Depends
 
 @router.post("/{customer_id}/checkin")
 def checkin_customer(customer_id: int, user: dict = Depends(get_current_user)):
+    current_location_id = get_current_location_id()
+    if not current_location_id:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở")
+
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, code, full_name, location_id FROM customers WHERE id = ? AND is_active = 1", (customer_id,)
+            "SELECT id, code, full_name, location_id FROM customers WHERE id = ? AND location_id = ? AND is_active = 1",
+            (customer_id, current_location_id),
         ).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng hoặc đã bị vô hiệu hóa")
+            raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng tại cơ sở hiện tại hoặc đã bị vô hiệu hóa")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
@@ -145,10 +163,18 @@ def customers_page():
 def render():
     loc_id = get_current_location_id()
 
-    with ui.element("div").classes("page-container"):
+    with get_db() as conn:
+        location = conn.execute(
+            "SELECT name FROM locations WHERE id = ? AND is_active = 1",
+            (loc_id,),
+        ).fetchone()
+    location_name = location["name"] if location else "Chưa chọn cơ sở"
+
+        with ui.element("div").classes("page-container"):
         with ui.row().classes("items-center page-title w-full"):
             ui.label("👥").classes("text-2xl")
             ui.label("Quản lý khách hàng")
+            ui.label(f"Cơ sở: {location_name}").classes("text-sm text-gray-500 ml-auto")
 
         search_input = ui.input("Tìm theo mã, tên, hoặc số điện thoại").props("outlined clearable dense").classes("flex-grow")
 
@@ -181,8 +207,9 @@ def render():
             customer_table.rows = [{**dict(r), "action": r["id"]} for r in rows]
             customer_table.update()
 
-        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
+                with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
             ui.label("Thêm khách hàng").classes("text-xl font-bold mb-4")
+            ui.label(f"Khách hàng sẽ thuộc: {location_name}").classes("text-sm text-gray-500 mb-3")
             code = ui.input("Mã KH *").props("outlined dense").classes("w-full mb-2")
             name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
@@ -190,8 +217,11 @@ def render():
             notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             err = ui.label().classes("text-red-500 text-sm")
 
-            def handle_create():
+                        def handle_create():
                 err.set_text("")
+                if not loc_id:
+                    err.set_text("Vui lòng chọn cơ sở trước khi thêm khách hàng")
+                    return
                 if not code.value or not name.value:
                     err.set_text("Vui lòng nhập mã KH và họ tên")
                     return
@@ -201,9 +231,9 @@ def render():
                     existing = conn.execute(
                         "SELECT id FROM customers WHERE code = ? AND location_id = ?",
                         (code.value, loc_id),
-                    ).fetchone()
+                                        ).fetchone()
                     if existing:
-                        err.set_text("Mã KH đã tồn tại")
+                        err.set_text("Mã KH đã tồn tại tại cơ sở này")
                         return
 
                     cur = conn.execute(
@@ -224,12 +254,13 @@ def render():
                 notes.value = ""
                 create_dialog.close()
                 refresh_customers()
-                ui.notify("Đã thêm khách hàng", type="positive")
+                ui.notify("Đã thêm khách hàng vào cơ sở hiện tại", type="positive")
 
             ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
 
-        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
+                with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
             ui.label("Sửa khách hàng").classes("text-xl font-bold mb-4")
+            ui.label(f"Cơ sở: {location_name}").classes("text-sm text-gray-500 mb-3")
             edit_id = ui.number("edit_id").props("hidden")
             e_name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             e_phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
@@ -237,8 +268,11 @@ def render():
             e_notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             edit_err = ui.label().classes("text-red-500 text-sm")
 
-            def handle_edit():
+                        def handle_edit():
                 edit_err.set_text("")
+                if not loc_id:
+                    edit_err.set_text("Vui lòng chọn cơ sở")
+                    return
                 if not e_name.value:
                     edit_err.set_text("Vui lòng nhập họ tên")
                     return

@@ -304,26 +304,7 @@ def render():
 
     search_input.on("keyup.enter", search_customers)
 
-    with ui.element("div").classes("mb-3"):
-        with ui.row().classes("gap-2"):
-            ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
-            ui.button("Tạo gói tập", on_click=create_dialog.open, icon="shopping_cart").props("unelevated").classes("btn-success")
-
-    package_table = ui.table(
-        columns=[
-            {"name": "name", "label": "Tên gói", "field": "name"},
-            {"name": "customer", "label": "Khách hàng", "field": "customer"},
-            {"name": "amount", "label": "Tổng tiền", "field": "amount"},
-            {"name": "items", "label": "Đồ uống", "field": "items"},
-            {"name": "date", "label": "Ngày tạo", "field": "date"},
-        ],
-        rows=[],
-        row_key="id",
-    ).classes("w-full")
-
-    ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined").classes("mb-4")
-
-    # Create package dialog
+    # Create package dialog (must be defined before buttons that reference it)
     with ui.dialog() as create_dialog, ui.card().classes("p-6 w-full max-w-lg"):
         ui.label("Tạo gói trả trước").classes("text-xl font-bold mb-4")
 
@@ -395,7 +376,22 @@ def render():
         ui.button("Thêm món", on_click=add_item_row, icon="add").props("outlined").classes("mb-2")
         ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")
 
-    ui.button("Tạo gói trả trước", on_click=create_dialog.open, icon="shopping_cart").props("unelevated").classes("bg-green-600 text-white mb-4")
+    with ui.element("div").classes("mb-3"):
+        with ui.row().classes("gap-2"):
+            ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
+            ui.button("Tạo gói tập", on_click=create_dialog.open, icon="shopping_cart").props("unelevated").classes("btn-success")
+
+    package_table = ui.table(
+        columns=[
+            {"name": "name", "label": "Tên gói", "field": "name"},
+            {"name": "customer", "label": "Khách hàng", "field": "customer"},
+            {"name": "amount", "label": "Tổng tiền", "field": "amount"},
+            {"name": "items", "label": "Đồ uống", "field": "items"},
+            {"name": "date", "label": "Ngày tạo", "field": "date"},
+        ],
+        rows=[],
+        row_key="id",
+    ).classes("w-full")
 
     search_customers()
     refresh()
