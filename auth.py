@@ -356,8 +356,8 @@ def deactivate_user(user_id: int, user: dict = Depends(require_role("OWNER"))):
 def login_page():
     ui.add_head_html('<link rel="stylesheet" href="/static/style.css">')
     ui.query("body").classes("login-body")
-    with ui.column().classes("items-center justify-center min-h-screen"):
-        with ui.card().classes("login-card p-8 md:p-10 w-full max-w-md mx-4"):
+    with ui.element("div").classes("login-center"):
+            with ui.card().classes("login-card p-8 md:p-10 w-full max-w-md"):
             # Logo & Header
             with ui.element("div").classes("login-header"):
                 ui.label("🧘").classes("logo")
@@ -430,8 +430,8 @@ def select_location_page():
 
     ui.add_head_html('<link rel="stylesheet" href="/static/style.css">')
     ui.query("body").classes("location-page")
-    with ui.column().classes("items-center justify-center min-h-screen"):
-        with ui.card().classes("login-card p-8 md:p-10 w-full max-w-md mx-4"):
+    with ui.element("div").classes("login-center"):
+            with ui.card().classes("login-card p-8 md:p-10 w-full max-w-md"):
             with ui.element("div").classes("login-header"):
                 ui.label("📍").classes("logo")
                 ui.label("Chọn cơ sở làm việc").classes("title")

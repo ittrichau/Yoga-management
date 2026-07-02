@@ -400,6 +400,17 @@ header.q-header .text-white\/80 {
         radial-gradient(circle at 80% 0%, rgba(247, 244, 239, 0.95), transparent 24rem),
         linear-gradient(135deg, #FFFFFF 0%, #F7F4EF 100%) !important;
     min-height: 100vh !important;
+    margin: 0 !important;
+    overflow-x: hidden;
+}
+.login-center {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
 }
 .login-card {
     background: var(--white);

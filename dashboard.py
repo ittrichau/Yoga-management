@@ -455,20 +455,17 @@ def render():
             stock_table.rows = []
             for s in d["all_stock"]:
                 if s["current_stock"] <= s["min_stock"]:
-                    status = "THIẾU"
-                    status_class = "danger"
-                elif s["current_stock"] <= s["min_stock"] * 2:
-                    status = "Cảnh báo"
-                    status_class = "warning"
-                else:
-                    status = "OK"
-                    status_class = "ok"
-                stock_table.rows.append({
-                    "id": s["name"],
-                    "name": s["name"],
-                    "unit": s["unit"],
-                    "stock": f"{s['current_stock']:.1f}",
-                    "min": f"{s['min_stock']:.1f}",
-                    "status": f'<span class="status-chip {status_class}">{status}</span>',
-                })
+                                    status = "🔴 THIẾU"
+                                elif s["current_stock"] <= s["min_stock"] * 2:
+                                    status = "🟡 Cảnh báo"
+                                else:
+                                    status = "🟢 OK"
+                                stock_table.rows.append({
+                                    "id": s["name"],
+                                    "name": s["name"],
+                                    "unit": s["unit"],
+                                    "stock": f"{s['current_stock']:.1f}",
+                                    "min": f"{s['min_stock']:.1f}",
+                                    "status": status,
+                                })
             stock_table.update()
