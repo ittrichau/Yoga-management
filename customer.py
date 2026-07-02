@@ -114,8 +114,8 @@ def update_customer(customer_id: int, data: CustomerUpdate, user: dict = Depends
             return {"message": "Không có thay đổi"}
         updates["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         set_clause = ", ".join(f"{k} = ?" for k in updates)
-                values = list(updates.values()) + [customer_id, current_location_id]
-                conn.execute(f"UPDATE customers SET {set_clause} WHERE id = ? AND location_id = ?", values)
+        values = list(updates.values()) + [customer_id, current_location_id]
+        conn.execute(f"UPDATE customers SET {set_clause} WHERE id = ? AND location_id = ?", values)
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                VALUES (?, ?, 'update', 'customer', ?, ?)""",
@@ -170,7 +170,7 @@ def render():
         ).fetchone()
     location_name = location["name"] if location else "Chưa chọn cơ sở"
 
-        with ui.element("div").classes("page-container"):
+    with ui.element("div").classes("page-container"):
         with ui.row().classes("items-center page-title w-full"):
             ui.label("👥").classes("text-2xl")
             ui.label("Quản lý khách hàng")
@@ -207,7 +207,7 @@ def render():
             customer_table.rows = [{**dict(r), "action": r["id"]} for r in rows]
             customer_table.update()
 
-                with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
+        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
             ui.label("Thêm khách hàng").classes("text-xl font-bold mb-4")
             ui.label(f"Khách hàng sẽ thuộc: {location_name}").classes("text-sm text-gray-500 mb-3")
             code = ui.input("Mã KH *").props("outlined dense").classes("w-full mb-2")
@@ -217,7 +217,7 @@ def render():
             notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             err = ui.label().classes("text-red-500 text-sm")
 
-                        def handle_create():
+            def handle_create():
                 err.set_text("")
                 if not loc_id:
                     err.set_text("Vui lòng chọn cơ sở trước khi thêm khách hàng")
@@ -231,7 +231,7 @@ def render():
                     existing = conn.execute(
                         "SELECT id FROM customers WHERE code = ? AND location_id = ?",
                         (code.value, loc_id),
-                                        ).fetchone()
+                    ).fetchone()
                     if existing:
                         err.set_text("Mã KH đã tồn tại tại cơ sở này")
                         return
@@ -258,7 +258,7 @@ def render():
 
             ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
 
-                with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
+        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
             ui.label("Sửa khách hàng").classes("text-xl font-bold mb-4")
             ui.label(f"Cơ sở: {location_name}").classes("text-sm text-gray-500 mb-3")
             edit_id = ui.number("edit_id").props("hidden")
@@ -268,7 +268,7 @@ def render():
             e_notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             edit_err = ui.label().classes("text-red-500 text-sm")
 
-                        def handle_edit():
+            def handle_edit():
                 edit_err.set_text("")
                 if not loc_id:
                     edit_err.set_text("Vui lòng chọn cơ sở")
