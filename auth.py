@@ -358,11 +358,11 @@ def login_page():
     ui.query("body").classes("login-body")
     with ui.element("div").classes("login-center"):
             with ui.card().classes("login-card p-8 md:p-10 w-full max-w-md"):
-            # Logo & Header
-            with ui.element("div").classes("login-header"):
-                ui.label("🧘").classes("logo")
-                ui.label("Quản lý Gym").classes("title")
-                ui.label("Hệ thống quản lý phòng tập Yoga").classes("subtitle")
+                # Logo & Header
+                with ui.element("div").classes("login-header"):
+                    ui.label("🧘").classes("logo")
+                    ui.label("Quản lý Gym").classes("title")
+                    ui.label("Hệ thống quản lý phòng tập Yoga").classes("subtitle")
 
             username = ui.input("Tên đăng nhập").props("outlined dense").classes("w-full mb-3")
             password = ui.input("Mật khẩu", password=True, password_toggle_button=True).props("outlined dense").classes("w-full mb-2")
@@ -432,11 +432,11 @@ def select_location_page():
     ui.query("body").classes("location-page")
     with ui.element("div").classes("login-center"):
             with ui.card().classes("login-card p-8 md:p-10 w-full max-w-md"):
-            with ui.element("div").classes("login-header"):
-                ui.label("📍").classes("logo")
-                ui.label("Chọn cơ sở làm việc").classes("title")
-                username = app.storage.user.get("username", "")
-                ui.label(f"Xin chào, {username}").classes("subtitle")
+                with ui.element("div").classes("login-header"):
+                    ui.label("📍").classes("logo")
+                    ui.label("Chọn cơ sở làm việc").classes("title")
+                    username = app.storage.user.get("username", "")
+                    ui.label(f"Xin chào, {username}").classes("subtitle")
 
             if not locs:
                 ui.label("Bạn chưa được gán vào cơ sở nào. Vui lòng liên hệ quản lý.").classes("text-red-500 text-center")
