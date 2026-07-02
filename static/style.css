@@ -527,3 +527,93 @@ header.q-header .text-white\/80 {
         width: 100%;
     }
 }
+
+/* ── Auth Refactor Layout ───────────────────────────────────────── */
+.auth-shell {
+    position: relative;
+}
+
+.auth-shell::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 50% 10%, rgba(143, 175, 157, 0.16), transparent 20rem),
+        radial-gradient(circle at 10% 90%, rgba(184, 205, 191, 0.18), transparent 18rem);
+}
+
+.auth-card {
+    position: relative;
+    border: 1px solid rgba(229, 231, 235, 0.92);
+    overflow: hidden;
+}
+
+.auth-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 5px;
+    background: linear-gradient(90deg, var(--primary), var(--primary-light), var(--success));
+}
+
+.auth-admin-card {
+    overflow: hidden;
+}
+
+.admin-toolbar {
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.action-buttons {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.location-choice {
+    min-height: 3.25rem !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    border-radius: var(--radius) !important;
+}
+
+.location-choice .q-btn__content {
+    justify-content: flex-start !important;
+    width: 100%;
+    gap: 0.7rem;
+}
+
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: var(--primary-bg);
+    color: var(--primary-dark);
+}
+
+@media (max-width: 640px) {
+    .auth-card {
+        padding: 1.5rem !important;
+    }
+
+    .admin-toolbar,
+    .admin-toolbar > div {
+        align-items: stretch !important;
+        width: 100%;
+    }
+
+    .admin-toolbar .q-btn {
+        width: 100%;
+    }
+
+    .action-buttons {
+        gap: 0.1rem;
+    }
+}
