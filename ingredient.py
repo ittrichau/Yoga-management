@@ -121,6 +121,38 @@ def render():
     role = app.storage.user.get("role", "STAFF")
     loc_id = get_current_location_id()
 
+    # Helper defined first so on_click callbacks can reference it.
+    # Widgets (search_input, ing_table) are resolved at call time via closure.
+    def refresh():
+        search = search_input.value or ""
+        with get_db() as conn:
+            if search:
+                like = f"%{search}%"
+                rows = conn.execute(
+                    "SELECT id, name, unit, current_stock, min_stock FROM ingredients WHERE is_active = 1 AND location_id = ? AND name LIKE ? ORDER BY name",
+                    (loc_id, like),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT id, name, unit, current_stock, min_stock FROM ingredients WHERE is_active = 1 AND location_id = ? ORDER BY name",
+                    (loc_id,),
+                ).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["stock"] = f"{r['current_stock']:.1f}"
+            d["min"] = f"{r['min_stock']:.1f}"
+            if r["current_stock"] <= r["min_stock"]:
+                d["status"] = '<span class="status-chip danger">THIẾU</span>'
+            elif r["current_stock"] <= r["min_stock"] * 2:
+                d["status"] = '<span class="status-chip warning">Cảnh báo</span>'
+            else:
+                d["status"] = '<span class="status-chip ok">OK</span>'
+            d["action"] = d["id"]
+            result.append(d)
+        ing_table.rows = result
+        ing_table.update()
+
     with ui.element("div").classes("page-container"):
         with ui.row().classes("items-center page-title w-full"):
             ui.label("🧪").classes("text-2xl")
@@ -145,36 +177,6 @@ def render():
             rows=[],
             row_key="id",
         ).classes("w-full")
-
-        def refresh():
-            search = search_input.value or ""
-            with get_db() as conn:
-                if search:
-                    like = f"%{search}%"
-                    rows = conn.execute(
-                        "SELECT id, name, unit, current_stock, min_stock FROM ingredients WHERE is_active = 1 AND location_id = ? AND name LIKE ? ORDER BY name",
-                        (loc_id, like),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT id, name, unit, current_stock, min_stock FROM ingredients WHERE is_active = 1 AND location_id = ? ORDER BY name",
-                        (loc_id,),
-                    ).fetchall()
-            result = []
-            for r in rows:
-                d = dict(r)
-                d["stock"] = f"{r['current_stock']:.1f}"
-                d["min"] = f"{r['min_stock']:.1f}"
-                if r["current_stock"] <= r["min_stock"]:
-                    d["status"] = '<span class="status-chip danger">THIẾU</span>'
-                elif r["current_stock"] <= r["min_stock"] * 2:
-                    d["status"] = '<span class="status-chip warning">Cảnh báo</span>'
-                else:
-                    d["status"] = '<span class="status-chip ok">OK</span>'
-                d["action"] = d["id"]
-                result.append(d)
-            ing_table.rows = result
-            ing_table.update()
 
         # Create dialog
         with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):

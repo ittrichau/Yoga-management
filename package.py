@@ -228,20 +228,9 @@ def render():
     role = app.storage.user.get("role", "STAFF")
     loc_id = get_current_location_id()
 
-    with ui.element("div").classes("page-container"):
-        with ui.row().classes("items-center page-title w-full"):
-            ui.label("📦").classes("text-2xl")
-            ui.label("Quản lý gói tập")
-
-    # Search customer
-    with ui.element("div").classes("page-container"):
-        with ui.element("div").classes("search-bar"):
-            search_input = ui.input("Tìm theo tên hoặc mã khách hàng").props("outlined clearable dense").classes("flex-grow")
-            ui.button("Tìm khách hàng", on_click=search_customers, icon="search").props("outlined")
-    customer_select_options = {}
-
-    customer_select = ui.select({}, label="Chọn khách hàng").props("outlined dense").classes("w-full mb-3")
-
+    # Helpers defined first so on_click callbacks can reference them.
+    # Widgets (search_input, customer_select, package_table) are resolved
+    # at call time via Python's closure mechanism.
     def search_customers():
         with get_db() as conn:
             search = search_input.value
@@ -260,25 +249,6 @@ def render():
         for r in rows:
             customer_select_options[r["id"]] = f"{r['code']} - {r['full_name']}"
         customer_select.set_options(customer_select_options)
-
-    search_input.on("keyup.enter", search_customers)
-
-    with ui.element("div").classes("mb-3"):
-        with ui.row().classes("gap-2"):
-            ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
-            ui.button("Tạo gói tập", on_click=create_dialog.open, icon="shopping_cart").props("unelevated").classes("btn-success")
-
-    package_table = ui.table(
-        columns=[
-            {"name": "name", "label": "Tên gói", "field": "name"},
-            {"name": "customer", "label": "Khách hàng", "field": "customer"},
-            {"name": "amount", "label": "Tổng tiền", "field": "amount"},
-            {"name": "items", "label": "Đồ uống", "field": "items"},
-            {"name": "date", "label": "Ngày tạo", "field": "date"},
-        ],
-        rows=[],
-        row_key="id",
-    ).classes("w-full")
 
     def refresh():
         customer_id = customer_select.value
@@ -317,6 +287,39 @@ def render():
             })
         package_table.rows = results
         package_table.update()
+
+    with ui.element("div").classes("page-container"):
+        with ui.row().classes("items-center page-title w-full"):
+            ui.label("📦").classes("text-2xl")
+            ui.label("Quản lý gói tập")
+
+    # Search customer
+    with ui.element("div").classes("page-container"):
+        with ui.element("div").classes("search-bar"):
+            search_input = ui.input("Tìm theo tên hoặc mã khách hàng").props("outlined clearable dense").classes("flex-grow")
+            ui.button("Tìm khách hàng", on_click=search_customers, icon="search").props("outlined")
+    customer_select_options = {}
+
+    customer_select = ui.select({}, label="Chọn khách hàng").props("outlined dense").classes("w-full mb-3")
+
+    search_input.on("keyup.enter", search_customers)
+
+    with ui.element("div").classes("mb-3"):
+        with ui.row().classes("gap-2"):
+            ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
+            ui.button("Tạo gói tập", on_click=create_dialog.open, icon="shopping_cart").props("unelevated").classes("btn-success")
+
+    package_table = ui.table(
+        columns=[
+            {"name": "name", "label": "Tên gói", "field": "name"},
+            {"name": "customer", "label": "Khách hàng", "field": "customer"},
+            {"name": "amount", "label": "Tổng tiền", "field": "amount"},
+            {"name": "items", "label": "Đồ uống", "field": "items"},
+            {"name": "date", "label": "Ngày tạo", "field": "date"},
+        ],
+        rows=[],
+        row_key="id",
+    ).classes("w-full")
 
     ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined").classes("mb-4")
 

@@ -464,7 +464,8 @@ def ui_error_from_exception(exc: Exception, fallback: str) -> None:
 def switch_location(location_id: int, location_name: str):
     app.storage.user.update({"location_id": location_id, "location_name": location_name})
     ui.notify(f"Đã chuyển sang {location_name}", type="positive")
-    ui.navigate.to("/")
+    ui.run_javascript("location.href = '/'")
+    # Force page reload so all data refreshes for the new location
 
 
 def render_location_dialog():
@@ -477,17 +478,23 @@ def render_location_dialog():
         if loc_id:
             ui.label(f"Đang làm việc tại: {loc_name}").classes("status-chip ok mb-3")
 
-        with ui.column().classes("w-full gap-2"):
-            for location in locations:
-                is_current = location["id"] == loc_id
-                with ui.button(
-                    on_click=lambda item=location: switch_location(item["id"], item["name"]),
-                    icon="check" if is_current else "place",
-                ).props("unelevated" if is_current else "outlined").classes("location-choice w-full"):
-                    with ui.column().classes("items-start gap-0"):
-                        ui.label(location["name"]).classes("font-bold")
-                        if location.get("address"):
-                            ui.label(location["address"]).classes("text-xs text-gray-500")
+        if not locations:
+            ui.label("Bạn chưa được gán vào cơ sở nào.").classes("text-center text-gray-500 py-4")
+            ui.label("Vui lòng liên hệ quản lý.").classes("text-center text-sm text-gray-400")
+        elif len(locations) == 1 and locations[0]["id"] == loc_id:
+            ui.label("Bạn chỉ có một cơ sở làm việc.").classes("text-center text-gray-500 py-4")
+        else:
+            with ui.column().classes("w-full gap-2"):
+                for location in locations:
+                    is_current = location["id"] == loc_id
+                    with ui.button(
+                        on_click=lambda item=location: (dialog.close(), switch_location(item["id"], item["name"])),
+                        icon="check" if is_current else "place",
+                    ).props("unelevated" if is_current else "outlined").classes("location-choice w-full"):
+                        with ui.column().classes("items-start gap-0"):
+                            ui.label(location["name"]).classes("font-bold")
+                            if location.get("address"):
+                                ui.label(location["address"]).classes("text-xs text-gray-500")
 
         ui.button("Đóng", on_click=dialog.close, icon="close").props("outlined").classes("w-full mt-4")
 

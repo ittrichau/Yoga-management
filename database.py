@@ -493,15 +493,19 @@ def seed_defaults():
     import bcrypt as _bcrypt
 
     with get_db() as db:
-        # Seed locations: ensure at least location 1 and 2 exist
-        existing1 = db.execute("SELECT id FROM locations WHERE id = 1").fetchone()
-        if existing1 is None:
-            db.execute("INSERT INTO locations (id, name, address) VALUES (1, 'Cơ sở 1', '')")
-            db.execute("INSERT INTO locations (id, name, address) VALUES (2, 'Cơ sở 2', '')")
-        existing2 = db.execute("SELECT id FROM locations WHERE id = 2").fetchone()
-        if existing2 is None and existing1 is None:
-            # Already inserted 2 above in the same branch
-            pass
+        # Seed locations: ensure at least 2 locations exist with meaningful names
+        # Don't rely on id=1 checks since migrate_schema may have inserted "Cơ sở mặc định"
+        loc_rows = db.execute("SELECT id, name FROM locations").fetchall()
+        loc_count = len(loc_rows)
+
+        if loc_count == 1 and loc_rows[0]["name"] == "Cơ sở mặc định":
+            # Rename the default location and add a second one
+            db.execute("UPDATE locations SET name = 'Cơ sở 1' WHERE id = ?", (loc_rows[0]["id"],))
+            db.execute("INSERT INTO locations (name, address) VALUES ('Cơ sở 2', '')")
+        elif loc_count == 0:
+            db.execute("INSERT INTO locations (name, address) VALUES ('Cơ sở 1', '')")
+            db.execute("INSERT INTO locations (name, address) VALUES ('Cơ sở 2', '')")
+
         # Only operate on locations that actually exist
         existing_loc_ids = [r["id"] for r in db.execute("SELECT id FROM locations").fetchall()]
 

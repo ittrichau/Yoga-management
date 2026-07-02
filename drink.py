@@ -111,6 +111,33 @@ def render():
     role = app.storage.user.get("role", "STAFF")
     loc_id = get_current_location_id()
 
+    # Helper functions defined first so on_click callbacks can reference them.
+    # Widgets referenced inside (search_input, drink_table) are resolved at
+    # call time via Python's closure mechanism, so they only need to exist
+    # when the button is actually clicked – not at definition time.
+    def refresh():
+        search = search_input.value or ""
+        with get_db() as conn:
+            if search:
+                like = f"%{search}%"
+                rows = conn.execute(
+                    "SELECT id, name, price, description FROM drinks WHERE is_active = 1 AND location_id = ? AND name LIKE ? ORDER BY name",
+                    (loc_id, like),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT id, name, price, description FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
+                    (loc_id,),
+                ).fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["price"] = f"{r['price']:,.0f}đ"
+            d["action"] = d["id"]
+            result.append(d)
+        drink_table.rows = result
+        drink_table.update()
+
     with ui.element("div").classes("page-container"):
         with ui.row().classes("items-center page-title w-full"):
             ui.label("🥤").classes("text-2xl")
@@ -133,29 +160,6 @@ def render():
             rows=[],
             row_key="id",
         ).classes("w-full")
-
-        def refresh():
-            search = search_input.value or ""
-            with get_db() as conn:
-                if search:
-                    like = f"%{search}%"
-                    rows = conn.execute(
-                        "SELECT id, name, price, description FROM drinks WHERE is_active = 1 AND location_id = ? AND name LIKE ? ORDER BY name",
-                        (loc_id, like),
-                    ).fetchall()
-                else:
-                    rows = conn.execute(
-                        "SELECT id, name, price, description FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
-                        (loc_id,),
-                    ).fetchall()
-            result = []
-            for r in rows:
-                d = dict(r)
-                d["price"] = f"{r['price']:,.0f}đ"
-                d["action"] = d["id"]
-                result.append(d)
-            drink_table.rows = result
-            drink_table.update()
 
         # Create dialog
         with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
