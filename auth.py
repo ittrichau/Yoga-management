@@ -361,7 +361,7 @@ def login_page():
             # Logo & Header
             with ui.element("div").classes("login-header"):
                 ui.label("🧘").classes("logo")
-                ui.label("Yoga Management").classes("title")
+                ui.label("Quản lý Gym").classes("title")
                 ui.label("Hệ thống quản lý phòng tập Yoga").classes("subtitle")
 
             username = ui.input("Tên đăng nhập").props("outlined dense").classes("w-full mb-3")

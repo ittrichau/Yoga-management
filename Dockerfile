@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY *.py .
+COPY static ./static
 
 # Tạo thư mục data cho SQLite
 RUN mkdir -p /app/data
