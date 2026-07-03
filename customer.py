@@ -259,30 +259,6 @@ def render():
             notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             err = ui.label().classes("text-red-500 text-sm")
 
-            def refresh_next_code():
-                """Pull a preview of the next code from the server."""
-                if not loc_id:
-                    code.value = ""
-                    return
-                try:
-                    with get_db() as conn:
-                        rows = conn.execute(
-                            "SELECT code FROM customers WHERE location_id = ? AND is_active = 1",
-                            (loc_id,),
-                        ).fetchall()
-                    import re as _re
-                    max_n = 0
-                    for r in rows:
-                        m = _re.match(r"^HV(\d+)$", (r["code"] or "").strip().upper())
-                        if m:
-                            try:
-                                max_n = max(max_n, int(m.group(1)))
-                            except ValueError:
-                                pass
-                    code.value = f"HV{max_n + 1:06d}"
-                except Exception:
-                    code.value = "HV000001"
-
             def handle_create():
                 err.set_text("")
                 if not loc_id:
