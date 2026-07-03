@@ -690,6 +690,10 @@ def migrate_schema():
 
             if not _has_col("packages", "package_template_id"):
                 db.execute("ALTER TABLE packages ADD COLUMN package_template_id INTEGER")
+            if not _has_col("package_templates", "description"):
+                db.execute("ALTER TABLE package_templates ADD COLUMN description TEXT DEFAULT ''")
+            if not _has_col("customers", "current_package_id"):
+                db.execute("ALTER TABLE customers ADD COLUMN current_package_id INTEGER REFERENCES packages(id)")
             if not _has_col("packages", "duration_days"):
                 db.execute("ALTER TABLE packages ADD COLUMN duration_days INTEGER DEFAULT 0")
             if not _has_col("packages", "start_date"):

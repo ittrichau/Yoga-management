@@ -305,19 +305,50 @@ def render():
     search_input.on("keyup.enter", search_customers)
 
     # Create package dialog (must be defined before buttons that reference it)
-    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-full max-w-lg"):
-        ui.label("Tạo gói trả trước").classes("text-xl font-bold mb-4")
+    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-full max-w-lg relative"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("Tạo gói trả trước").classes("text-xl font-bold mb-4 pr-8")
 
         # Customer select inside dialog
         with get_db() as conn:
             all_customers = conn.execute(
                 "SELECT id, code, full_name FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name",
                 (loc_id,),
-            ).fetchall()
+                        ).fetchall()
         cust_options = {r["id"]: f"{r['code']} - {r['full_name']}" for r in all_customers}
         p_customer = ui.select(cust_options, label="Khách hàng *").props("outlined").classes("w-full mb-2")
-        p_name = ui.input("Tên gói", value="").props("outlined").classes("w-full mb-2")
-        p_amount = ui.number("Tổng tiền (VNĐ)", value=0).props("outlined").classes("w-full mb-4")
+
+        with get_db() as conn:
+            templates = conn.execute(
+                "SELECT * FROM package_templates WHERE is_active = 1 AND location_id = ? ORDER BY total_amount",
+                (loc_id,),
+            ).fetchall()
+        template_rows = {r["id"]: dict(r) for r in templates}
+        template_options = {
+            r["id"]: f"{r['name']} - {r['total_amount']:,.0f}đ - {r['duration_days']} ngày"
+            for r in templates
+        }
+        p_template = ui.select(template_options, label="Chọn gói tập *").props("outlined").classes("w-full mb-2")
+        p_name = ui.input("Tên gói").props("outlined readonly").classes("w-full mb-2")
+        p_amount = ui.number("Tổng tiền (VNĐ)", value=0).props("outlined readonly").classes("w-full mb-2")
+        p_duration = ui.number("Thời hạn (ngày)", value=0).props("outlined readonly").classes("w-full mb-2")
+        p_sessions = ui.number("Số buổi tập", value=0).props("outlined readonly").classes("w-full mb-4")
+
+        def on_template_change():
+            tpl = template_rows.get(p_template.value)
+            if not tpl:
+                p_name.value = ""
+                p_amount.value = 0
+                p_duration.value = 0
+                p_sessions.value = 0
+                return
+            p_name.value = tpl["name"]
+            p_amount.value = tpl["total_amount"]
+            p_duration.value = tpl["duration_days"]
+            p_sessions.value = tpl["total_sessions"]
+
+        p_template.on("update:model-value", on_template_change)
 
         ui.label("Các món trong gói:").classes("text-sm font-bold mb-2")
         package_items = []
@@ -343,17 +374,49 @@ def render():
         err = ui.label().classes("text-red-500 text-sm")
 
         def handle_create():
+            err.set_text("")
             if not p_customer.value:
                 err.set_text("Vui lòng chọn khách hàng")
+                return
+            if not p_template.value:
+                err.set_text("Vui lòng chọn gói tập từ danh sách")
                 return
             if not package_items:
                 err.set_text("Vui lòng thêm ít nhất một món")
                 return
+
+            tpl = template_rows.get(p_template.value)
+            if not tpl:
+                err.set_text("Gói tập không hợp lệ hoặc đã bị vô hiệu hóa")
+                return
+
             user_id = app.storage.user.get("user_id", 1)
+            start_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            end_date = None
+            duration_days = int(tpl["duration_days"] or 0)
+            if duration_days > 0:
+                from datetime import timedelta
+                end_date = (datetime.strptime(start_date, "%Y-%m-%d") + timedelta(days=duration_days)).strftime("%Y-%m-%d")
+
             with get_db() as conn:
                 cur = conn.execute(
-                    "INSERT INTO packages (location_id, customer_id, name, total_amount, created_by) VALUES (?, ?, ?, ?, ?)",
-                    (loc_id, p_customer.value, p_name.value, p_amount.value or 0, user_id),
+                    """INSERT INTO packages
+                       (location_id, customer_id, name, total_amount, package_template_id,
+                        duration_days, start_date, end_date, total_sessions, remaining_sessions, created_by)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        loc_id,
+                        p_customer.value,
+                        tpl["name"],
+                        tpl["total_amount"],
+                        p_template.value,
+                        duration_days,
+                        start_date,
+                        end_date,
+                        tpl["total_sessions"],
+                        tpl["total_sessions"],
+                        user_id,
+                    ),
                 )
                 package_id = cur.lastrowid
                 for item in package_items:
@@ -365,13 +428,17 @@ def render():
                             (package_id, drink_id, qty, qty),
                         )
                 conn.execute(
+                    "UPDATE customers SET current_package_id = ? WHERE id = ? AND location_id = ?",
+                    (package_id, p_customer.value, loc_id),
+                )
+                conn.execute(
                     """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                        VALUES (?, ?, 'create', 'package', ?, ?)""",
-                    (loc_id, user_id, package_id, f'{{"customer_id": {p_customer.value}, "amount": {p_amount.value or 0}}}'),
+                    (loc_id, user_id, package_id, f'{{"customer_id": {p_customer.value}, "template_id": {p_template.value}, "amount": {tpl["total_amount"]}}}'),
                 )
             create_dialog.close()
             refresh()
-            ui.notify("Đã tạo gói trả trước", type="positive")
+            ui.notify("Đã tạo gói tập cho khách hàng", type="positive")
 
         ui.button("Thêm món", on_click=add_item_row, icon="add").props("outlined").classes("mb-2")
         ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("bg-blue-600 text-white w-full")

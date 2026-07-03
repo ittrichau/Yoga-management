@@ -10,6 +10,7 @@ from auth import get_current_user, require_role, render_navbar, get_current_loca
 router = APIRouter(prefix="/api/ingredients", tags=["ingredients"])
 
 class IngredientCreate(BaseModel):
+    location_id: int | None = None
     name: str
     unit: str = ""
     current_stock: float = 0.0
@@ -42,18 +43,23 @@ def list_ingredients(location_id: int | None = None, user: dict = Depends(get_cu
 
 @router.post("", status_code=201)
 def create_ingredient(data: IngredientCreate, user: dict = Depends(require_role("MANAGER"))):
+    location_id = data.location_id or user.get("location_id")
+    if not location_id:
+        raise HTTPException(status_code=400, detail="Chưa chọn chi nhánh")
+
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO ingredients (location_id, name, unit, current_stock, min_stock, created_by)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (data.get("location_id"), data.name, data.unit, data.current_stock, data.min_stock, user["id"]),
+            (location_id, data.name, data.unit, data.current_stock, data.min_stock, user["id"]),
         )
+        ingredient_id = cur.lastrowid
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                VALUES (?, ?, 'create', 'ingredient', ?, ?)""",
-            (data.get("location_id"), user["id"], cur.lastrowid, f'{{"name":"{data.name}","stock":{data.current_stock}}}'),
+            (location_id, user["id"], ingredient_id, f'{{"name":"{data.name}","stock":{data.current_stock}}}'),
         )
-    return {"id": cur.lastrowid, "message": "Nguyên liệu đã được tạo"}
+    return {"id": ingredient_id, "message": "Nguyên liệu đã được tạo"}
 
 
 @router.put("/{ingredient_id}")
@@ -163,7 +169,7 @@ def render():
             search_input = ui.input("Tìm kiếm nguyên liệu").props("outlined clearable dense").classes("flex-grow")
             ui.button("Tìm", icon="search", on_click=refresh).props("outlined")
             if role in ("MANAGER", "OWNER"):
-                ui.button("Thêm nguyên liệu", icon="add", on_click=create_dialog.open).props("unelevated").classes("btn-success")
+                ui.button("Thêm nguyên liệu", icon="add", on_click=lambda: create_dialog.open()).props("unelevated").classes("btn-success")
 
         ing_table = ui.table(
             columns=[
@@ -179,8 +185,10 @@ def render():
         ).classes("w-full")
 
         # Create dialog
-        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
-            ui.label("Thêm nguyên liệu").classes("text-xl font-bold mb-4")
+        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Thêm nguyên liệu").classes("text-xl font-bold mb-4 pr-8")
             i_name = ui.input("Tên nguyên liệu *").props("outlined dense").classes("w-full mb-2")
             i_unit = ui.input("Đơn vị (vd: kg, lít, gói)").props("outlined dense").classes("w-full mb-2")
             i_stock = ui.number("Tồn kho ban đầu", value=0, format="%.1f").props("outlined dense").classes("w-full mb-2")
@@ -193,25 +201,30 @@ def render():
                     return
                 user_id = app.storage.user.get("user_id", 1)
                 with get_db() as conn:
-                    conn.execute(
-                        """INSERT INTO ingredients (location_id, name, unit, current_stock, min_stock, created_by)
-                           VALUES (?, ?, ?, ?, ?, ?)""",
-                        (loc_id, i_name.value, i_unit.value or "", i_stock.value or 0, i_min.value or 0, user_id),
-                    )
-                    conn.execute(
+                                    cur = conn.execute(
+                                        """INSERT INTO ingredients (location_id, name, unit, current_stock, min_stock, created_by)
+                                           VALUES (?, ?, ?, ?, ?, ?)""",
+                                        (loc_id, i_name.value, i_unit.value or "", i_stock.value or 0, i_min.value or 0, user_id),
+                                    )
+                                    ingredient_id = cur.lastrowid
+                                    conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                            VALUES (?, ?, 'create', 'ingredient', ?, ?)""",
-                        (loc_id, user_id, conn.lastrowid, f'{{"name":"{i_name.value}","stock":{i_stock.value or 0}}}'),
+                        (loc_id, user_id, ingredient_id, f'{{"name":"{i_name.value}","stock":{i_stock.value or 0}}}'),
                     )
                 create_dialog.close()
                 refresh()
                 ui.notify("Đã thêm nguyên liệu", type="positive")
 
-            ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
+            with ui.row().classes("gap-2 justify-end w-full mt-2"):
+                ui.button("Đóng", on_click=create_dialog.close, icon="close").props("outlined")
+                ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary")
 
         # Edit dialog
-        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
-            ui.label("Sửa nguyên liệu").classes("text-xl font-bold mb-4")
+        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96 relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=edit_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Sửa nguyên liệu").classes("text-xl font-bold mb-4 pr-8")
             edit_id = ui.number("edit_id").props("hidden")
             e_name = ui.input("Tên nguyên liệu *").props("outlined dense").classes("w-full mb-2")
             e_unit = ui.input("Đơn vị").props("outlined dense").classes("w-full mb-2")
@@ -228,15 +241,24 @@ def render():
                         "UPDATE ingredients SET name = ?, unit = ?, min_stock = ?, updated_at = datetime('now','localtime') WHERE id = ?",
                         (e_name.value, e_unit.value or "", e_min.value or 0, int(edit_id.value or 0)),
                     )
+                    conn.execute(
+                        """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+                           VALUES (?, ?, 'update', 'ingredient', ?, ?)""",
+                        (loc_id, user_id, int(edit_id.value or 0), f'{{"name":"{e_name.value}","unit":"{e_unit.value or ""}","min_stock":{e_min.value or 0}}}'),
+                    )
                 edit_dialog.close()
                 refresh()
                 ui.notify("Đã cập nhật nguyên liệu", type="positive")
 
-            ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
+            with ui.row().classes("gap-2 justify-end w-full mt-2"):
+                ui.button("Đóng", on_click=edit_dialog.close, icon="close").props("outlined")
+                ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary")
 
         # Adjust stock dialog (OWNER only)
-        with ui.dialog() as adjust_dialog, ui.card().classes("p-6 w-96"):
-            ui.label("Điều chỉnh tồn kho").classes("text-xl font-bold mb-4")
+        with ui.dialog() as adjust_dialog, ui.card().classes("p-6 w-96 relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=adjust_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Điều chỉnh tồn kho").classes("text-xl font-bold mb-4 pr-8")
             adj_id = ui.number("adj_id").props("hidden")
             adj_label = ui.label().classes("text-sm font-bold mb-2")
             adj_current = ui.label().classes("text-sm text-gray-500 mb-2")
@@ -258,15 +280,43 @@ def render():
                         return
                     conn.execute("UPDATE ingredients SET current_stock = ?, updated_at = datetime('now','localtime') WHERE id = ?", (new_stock, ing_id))
                     conn.execute(
+                        """INSERT INTO inventory_adjustments (location_id, ingredient_id, adjustment_type, quantity, reason, created_by)
+                           VALUES (?, ?, 'add', ?, ?, ?)""",
+                        (loc_id, ing_id, adj_qty.value or 0, adj_reason.value or "", user_id),
+                    )
+                    conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                            VALUES (?, ?, 'adjust_stock', 'ingredient', ?, ?)""",
-                        (loc_id, user_id, ing_id, f'{{"old":{row["current_stock"]},"adjust":{adj_qty.value or 0},"new":{new_stock},"reason":"{adj_reason.value}"}}'),
+                        (loc_id, user_id, ing_id, f'{{"old":{row["current_stock"]},"adjust":{adj_qty.value or 0},"new":{new_stock},"reason":"{adj_reason.value or ""}"}}'),
                     )
                 adjust_dialog.close()
                 refresh()
                 ui.notify(f"Đã điều chỉnh tồn kho {(adj_qty.value or 0):+.1f}", type="positive")
 
-            ui.button("Lưu", on_click=handle_adjust, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
+            with ui.row().classes("gap-2 justify-end w-full mt-2"):
+                ui.button("Đóng", on_click=adjust_dialog.close, icon="close").props("outlined")
+                ui.button("Lưu", on_click=handle_adjust, icon="save").props("unelevated").classes("btn-primary")
+
+        def open_edit(row):
+            edit_id.value = row.get("id") or row.get("action")
+            e_name.value = row.get("name", "")
+            e_unit.value = row.get("unit", "")
+            try:
+                e_min.value = float(row.get("min", 0))
+            except (TypeError, ValueError):
+                e_min.value = 0
+            edit_err.set_text("")
+            edit_dialog.open()
+
+        def open_adjust(row):
+            ing_id = row.get("id") or row.get("action")
+            adj_id.value = ing_id
+            adj_label.set_text(f"Nguyên liệu: {row.get('name', '')}")
+            adj_current.set_text(f"Tồn kho hiện tại: {row.get('stock', 0)}")
+            adj_qty.value = 0
+            adj_reason.value = ""
+            adj_err.set_text("")
+            adjust_dialog.open()
 
         with ui.row().classes("gap-2 mb-4"):
             if role in ("MANAGER", "OWNER"):
@@ -275,19 +325,31 @@ def render():
 
         search_input.on("keyup.enter", refresh)
 
-        ing_table.add_slot(
-            "body-cell-action",
-            """
-            <q-td :props="props">
-                <q-btn flat color="primary" icon="edit" @click="$parent.$emit('edit_ing', props.row)">
-                    <q-tooltip>Sửa</q-tooltip>
-                </q-btn>
-                <q-btn flat color="warning" icon="tune" @click="$parent.$emit('adjust_ing', props.row)">
-                    <q-tooltip>Điều chỉnh kho</q-tooltip>
-                </q-btn>
-            </q-td>
-            """,
-        )
+        if role == "OWNER":
+            ing_table.add_slot(
+                "body-cell-action",
+                """
+                <q-td :props="props">
+                    <q-btn flat round dense color="primary" icon="edit" @click="$parent.$emit('edit_ing', props.row)">
+                        <q-tooltip>Sửa</q-tooltip>
+                    </q-btn>
+                    <q-btn flat round dense color="warning" icon="tune" @click="$parent.$emit('adjust_ing', props.row)">
+                        <q-tooltip>Điều chỉnh kho</q-tooltip>
+                    </q-btn>
+                </q-td>
+                """,
+            )
+        else:
+            ing_table.add_slot(
+                "body-cell-action",
+                """
+                <q-td :props="props">
+                    <q-btn flat round dense color="primary" icon="edit" @click="$parent.$emit('edit_ing', props.row)">
+                        <q-tooltip>Sửa</q-tooltip>
+                    </q-btn>
+                </q-td>
+                """,
+            )
         ing_table.on("edit_ing", lambda e: open_edit(e.args))
         ing_table.on("adjust_ing", lambda e: open_adjust(e.args))
 

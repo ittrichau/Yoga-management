@@ -340,6 +340,14 @@ def render():
 
         # ===================== Tab: Tất cả =====================
         with ui.tab_panel(tab_all):
+            # Detail dialog (defined first so it is in scope for open_detail)
+            with ui.dialog() as detail_dialog, ui.card().classes("p-6 w-full max-w-2xl relative"):
+                with ui.element("div").classes("absolute top-2 right-2"):
+                    ui.button(icon="close", on_click=detail_dialog.close).props("flat round dense").tooltip("Đóng")
+                ui.label("Chi tiết nhật ký").classes("text-xl font-bold mb-4 pr-8")
+                detail_container = ui.column().classes("w-full gap-2")
+                ui.button("Đóng", on_click=detail_dialog.close, icon="close").props("outlined").classes("mt-4")
+
             with ui.element("div").classes("custom-card p-4 mb-3"):
                 ui.label("🔍 Bộ lọc").classes("section-header")
                 with ui.element("div").classes("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 mt-2"):
@@ -360,16 +368,6 @@ def render():
                     ).props("outlined")
                     date_from = ui.input("Từ ngày").props("outlined type=date")
                     date_to = ui.input("Đến ngày").props("outlined type=date")
-                with ui.row().classes("gap-2 mt-2"):
-                    def clear_filters():
-                        entity_filter.value = ""
-                        action_filter.value = ""
-                        user_filter.value = ""
-                        date_from.value = ""
-                        date_to.value = ""
-                        refresh()
-                    ui.button("Làm mới", on_click=lambda: refresh(), icon="refresh").props("unelevated").classes("btn-primary")
-                    ui.button("Xóa bộ lọc", on_click=clear_filters, icon="clear").props("outlined")
 
             log_table = ui.table(
                 columns=[
@@ -386,27 +384,83 @@ def render():
                 pagination={"rowsPerPage": 25},
             ).classes("w-full overflow-x-auto")
 
-            log_table.add_slot(
-                "body-cell-view",
-                """
-                <q-td :props="props" auto-width>
-                    <q-btn flat round dense icon="visibility" color="blue"
-                           @click="$parent.$emit('view_log', props.row.id)">
-                        <q-tooltip>Xem chi tiết</q-tooltip>
-                    </q-btn>
-                </q-td>
-                """,
-            )
-            log_table.on("view_log", lambda e: open_detail(e.args))
+            # Define functions before they are used.
+            def refresh():
+                try:
+                    with get_db() as conn:
+                        where = ["al.location_id = ?"]
+                        params = [loc_id]
+                        if entity_filter.value:
+                            where.append("al.entity_type = ?")
+                            params.append(entity_filter.value)
+                        if action_filter.value:
+                            where.append("al.action = ?")
+                            params.append(action_filter.value)
+                        if user_filter.value:
+                            where.append("al.user_id = ?")
+                            params.append(int(user_filter.value))
+                        if date_from.value:
+                            where.append("al.created_at >= ?")
+                            params.append(date_from.value)
+                        if date_to.value:
+                            where.append("al.created_at < ?")
+                            try:
+                                dt = datetime.strptime(date_to.value, "%Y-%m-%d") + timedelta(days=1)
+                                params.append(dt.strftime("%Y-%m-%d"))
+                            except ValueError:
+                                params.append(date_to.value)
+                        if role != "OWNER":
+                            where.append("al.entity_type NOT IN ('user', 'location')")
+                        where_clause = "WHERE " + " AND ".join(where)
+                        rows = conn.execute(
+                            f"""SELECT al.*, u.username, u.full_name as user_full_name
+                                FROM audit_logs al
+                                LEFT JOIN users u ON u.id = al.user_id
+                                {where_clause}
+                                ORDER BY al.created_at DESC LIMIT 500""",
+                            params,
+                        ).fetchall()
 
-            # Detail dialog
-            with ui.dialog() as detail_dialog, ui.card().classes("p-6 w-full max-w-2xl"):
-                ui.label("Chi tiết nhật ký").classes("text-xl font-bold mb-4")
-                detail_container = ui.column().classes("w-full gap-2")
-                ui.button("Đóng", on_click=detail_dialog.close, icon="close").props("outlined").classes("mt-4")
+                    table_rows = []
+                    for r in rows:
+                        entity_label = ENTITY_LABELS.get(r["entity_type"], r["entity_type"])
+                        entity_name = ""
+                        try:
+                            entity_name = _resolve_entity_name(conn, r["entity_type"], r["entity_id"])
+                        except Exception:
+                            entity_name = ""
+                        if entity_name:
+                            entity_display = f"{entity_label}: {entity_name}"
+                        elif r["entity_id"]:
+                            entity_display = f"{entity_label} #{r['entity_id']}"
+                        else:
+                            entity_display = entity_label
+                        table_rows.append({
+                            "id": r["id"],
+                            "date": r["created_at"][:19] if r["created_at"] else "",
+                            "user": r["user_full_name"] or r["username"] or "Hệ thống",
+                            "action": ACTION_LABELS.get(r["action"], r["action"]),
+                            "entity": entity_display,
+                            "details": _format_details(r["details"]),
+                            "ip": r["ip_address"] or "",
+                            "view": r["id"],
+                            "raw_entity_type": r["entity_type"],
+                            "raw_entity_id": r["entity_id"],
+                        })
+                    log_table.rows = table_rows
+                    log_table.update()
+                except Exception as exc:
+                    ui.notify(f"Lỗi tải nhật ký: {exc}", type="negative")
+
+            def clear_filters():
+                entity_filter.value = ""
+                action_filter.value = ""
+                user_filter.value = ""
+                date_from.value = ""
+                date_to.value = ""
+                refresh()
 
             def open_detail(log_id):
-                # Find row in current table
                 row = next((r for r in log_table.rows if r["id"] == log_id), None)
                 if not row:
                     return
@@ -450,67 +504,23 @@ def render():
                     refresh()
                     ui.notify(f"Đang lọc log của {ENTITY_LABELS.get(et, et)}: {name}", type="info")
 
+            # Action buttons row (defined after functions to be safe)
+            with ui.row().classes("gap-2 mt-2 mb-2"):
+                ui.button("Làm mới", on_click=refresh, icon="refresh").props("unelevated").classes("btn-primary")
+                ui.button("Xóa bộ lọc", on_click=clear_filters, icon="clear").props("outlined")
 
-            def refresh():
-                with get_db() as conn:
-                    where = ["al.location_id = ?"]
-                    params = [loc_id]
-                    if entity_filter.value:
-                        where.append("al.entity_type = ?")
-                        params.append(entity_filter.value)
-                    if action_filter.value:
-                        where.append("al.action = ?")
-                        params.append(action_filter.value)
-                    if user_filter.value:
-                        where.append("al.user_id = ?")
-                        params.append(int(user_filter.value))
-                    if date_from.value:
-                        where.append("al.created_at >= ?")
-                        params.append(date_from.value)
-                    if date_to.value:
-                        # inclusive: add 1 day so to=2024-06-30 includes 30
-                        where.append("al.created_at < ?")
-                        try:
-                            dt = datetime.strptime(date_to.value, "%Y-%m-%d") + timedelta(days=1)
-                            params.append(dt.strftime("%Y-%m-%d"))
-                        except ValueError:
-                            params.append(date_to.value)
-                    if role != "OWNER":
-                        where.append("al.entity_type NOT IN ('user', 'location')")
-                    where_clause = "WHERE " + " AND ".join(where)
-                    rows = conn.execute(
-                        f"""SELECT al.*, u.username, u.full_name as user_full_name
-                            FROM audit_logs al
-                            LEFT JOIN users u ON u.id = al.user_id
-                            {where_clause}
-                            ORDER BY al.created_at DESC LIMIT 500""",
-                        params,
-                    ).fetchall()
-
-                table_rows = []
-                for r in rows:
-                    entity_label = ENTITY_LABELS.get(r["entity_type"], r["entity_type"])
-                    entity_name = _resolve_entity_name(conn, r["entity_type"], r["entity_id"])
-                    if entity_name:
-                        entity_display = f"{entity_label}: {entity_name}"
-                    elif r["entity_id"]:
-                        entity_display = f"{entity_label} #{r['entity_id']}"
-                    else:
-                        entity_display = entity_label
-                    table_rows.append({
-                        "id": r["id"],
-                        "date": r["created_at"][:19] if r["created_at"] else "",
-                        "user": r["user_full_name"] or r["username"] or "Hệ thống",
-                        "action": ACTION_LABELS.get(r["action"], r["action"]),
-                        "entity": entity_display,
-                        "details": _format_details(r["details"]),
-                        "ip": r["ip_address"] or "",
-                        "view": r["id"],
-                        "raw_entity_type": r["entity_type"],
-                        "raw_entity_id": r["entity_id"],
-                    })
-                log_table.rows = table_rows
-                log_table.update()
+            log_table.add_slot(
+                "body-cell-view",
+                """
+                <q-td :props="props" auto-width>
+                    <q-btn flat round dense icon="visibility" color="blue"
+                           @click="$parent.$emit('view_log', props.row.id)">
+                        <q-tooltip>Xem chi tiết</q-tooltip>
+                    </q-btn>
+                </q-td>
+                """,
+            )
+            log_table.on("view_log", lambda e: open_detail(e.args))
 
             entity_filter.on("update:model-value", refresh)
             action_filter.on("update:model-value", refresh)

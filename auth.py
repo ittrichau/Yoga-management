@@ -473,8 +473,10 @@ def render_location_dialog():
     loc_name = get_current_location_name()
     locations = get_user_locations(app.storage.user.get("user_id", 0))
 
-    with ui.dialog() as dialog, ui.card().classes("p-6 w-96 max-w-full"):
-        ui.label("📍 Chọn cơ sở làm việc").classes("section-header mt-0")
+    with ui.dialog() as dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("📍 Chọn cơ sở làm việc").classes("section-header mt-0 pr-8")
         if loc_id:
             ui.label(f"Đang làm việc tại: {loc_name}").classes("status-chip ok mb-3")
 
@@ -718,8 +720,10 @@ def users_page():
         c_locations.value = []
         c_error.set_text("")
 
-    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-[30rem] max-w-full"):
-        ui.label("👤 Người dùng mới").classes("section-header mt-0")
+    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-[30rem] max-w-full relative"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("👤 Người dùng mới").classes("section-header mt-0 pr-8")
         c_username = ui.input("Tên đăng nhập *").props("outlined").classes("w-full mb-2")
         c_password = ui.input("Mật khẩu *", password=True, password_toggle_button=True).props("outlined").classes(
             "w-full mb-2"
@@ -754,8 +758,10 @@ def users_page():
             ui.button("Đóng", on_click=create_dialog.close, icon="close").props("outlined")
             ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary")
 
-    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-[30rem] max-w-full"):
-        ui.label("✏️ Sửa người dùng").classes("section-header mt-0")
+    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-[30rem] max-w-full relative"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=edit_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("✏️ Sửa người dùng").classes("section-header mt-0 pr-8")
         e_id = ui.label().classes("hidden")
         e_username = ui.input("Tên đăng nhập").props("outlined readonly").classes("w-full mb-2")
         e_fullname = ui.input("Họ tên").props("outlined").classes("w-full mb-2")
@@ -889,8 +895,10 @@ def locations_page():
         l_address.value = ""
         l_error.set_text("")
 
-    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-[30rem] max-w-full"):
-        ui.label("🏢 Cơ sở mới").classes("section-header mt-0")
+    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-[30rem] max-w-full relative"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("🏢 Cơ sở mới").classes("section-header mt-0 pr-8")
         l_name = ui.input("Tên cơ sở *").props("outlined").classes("w-full mb-2")
         l_address = ui.input("Địa chỉ").props("outlined").classes("w-full mb-3")
         l_error = ui.label().classes("text-red-500 text-sm min-h-5")
@@ -914,8 +922,10 @@ def locations_page():
             ui.button("Đóng", on_click=create_dialog.close, icon="close").props("outlined")
             ui.button("Lưu", on_click=handle_create_location, icon="save").props("unelevated").classes("btn-primary")
 
-    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-[30rem] max-w-full"):
-        ui.label("✏️ Sửa cơ sở").classes("section-header mt-0")
+    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-[30rem] max-w-full relative"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=edit_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("✏️ Sửa cơ sở").classes("section-header mt-0 pr-8")
         le_id = ui.label().classes("hidden")
         le_name = ui.input("Tên cơ sở *").props("outlined").classes("w-full mb-2")
         le_address = ui.input("Địa chỉ").props("outlined").classes("w-full mb-3")

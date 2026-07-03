@@ -1,4 +1,5 @@
 """Customer management and check-in - filtered by location."""
+import re
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from nicegui import app, ui
@@ -10,7 +11,7 @@ from auth import get_current_user, require_role, render_navbar, get_current_loca
 router = APIRouter(prefix="/api/customers", tags=["customers"])
 
 class CustomerCreate(BaseModel):
-    code: str
+    code: str | None = None  # Auto-generated when omitted
     full_name: str
     phone: str = ""
     email: str = ""
@@ -21,6 +22,39 @@ class CustomerUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     notes: str | None = None
+
+
+def _generate_next_customer_code(conn, location_id: int) -> str:
+    """Generate the next unique customer code for the given location.
+
+    Format: HV000001, HV000002, ... (zero-padded 6 digits).
+    The numeric suffix is taken from the highest existing code that matches
+    the same format; if none exist, starts at 1. Soft-deleted customers are
+    ignored so a new customer is never assigned a code in use.
+    """
+    rows = conn.execute(
+        "SELECT code FROM customers WHERE location_id = ? AND is_active = 1",
+        (location_id,),
+    ).fetchall()
+    max_n = 0
+    for r in rows:
+        m = re.match(r"^HV(\d+)$", (r["code"] or "").strip().upper())
+        if m:
+            try:
+                max_n = max(max_n, int(m.group(1)))
+            except ValueError:
+                pass
+    return f"HV{max_n + 1:06d}"
+
+
+@router.get("/next-code")
+def get_next_code(user: dict = Depends(get_current_user)):
+    """Preview the next auto-generated customer code for the current location."""
+    location_id = get_current_location_id()
+    if not location_id:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở")
+    with get_db() as conn:
+        return {"code": _generate_next_customer_code(conn, location_id)}
 
 
 @router.get("")
@@ -76,20 +110,27 @@ def create_customer(data: CustomerCreate, user: dict = Depends(get_current_user)
         raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở trước khi thêm khách hàng")
 
     with get_db() as conn:
-        existing = conn.execute("SELECT id FROM customers WHERE code = ? AND location_id = ?", (data.code, location_id)).fetchone()
+        # If client didn't supply a code, auto-generate one. If a code was
+        # supplied, validate it doesn't conflict with another active customer
+        # at the same location.
+        code = (data.code or "").strip() or _generate_next_customer_code(conn, location_id)
+        existing = conn.execute(
+            "SELECT id FROM customers WHERE code = ? AND location_id = ?",
+            (code, location_id),
+        ).fetchone()
         if existing:
             raise HTTPException(status_code=400, detail="Mã KH đã tồn tại tại cơ sở này")
         cur = conn.execute(
             """INSERT INTO customers (location_id, code, full_name, phone, email, notes, created_by)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (location_id, data.code, data.full_name, data.phone, data.email, data.notes, user["id"]),
+            (location_id, code, data.full_name, data.phone, data.email, data.notes, user["id"]),
         )
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                VALUES (?, ?, 'create', 'customer', ?, ?)""",
-            (location_id, user["id"], cur.lastrowid, f'{{"code":"{data.code}","name":"{data.full_name}"}}'),
+            (location_id, user["id"], cur.lastrowid, f'{{"code":"{code}","name":"{data.full_name}"}}'),
         )
-    return {"id": cur.lastrowid, "message": "Khách hàng đã được tạo"}
+    return {"id": cur.lastrowid, "code": code, "message": "Khách hàng đã được tạo"}
 
 
 @router.put("/{customer_id}")
@@ -207,61 +248,110 @@ def render():
             customer_table.rows = [{**dict(r), "action": r["id"]} for r in rows]
             customer_table.update()
 
-        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
-            ui.label("Thêm khách hàng").classes("text-xl font-bold mb-4")
+        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Thêm khách hàng").classes("text-xl font-bold mb-4 pr-8")
             ui.label(f"Khách hàng sẽ thuộc: {location_name}").classes("text-sm text-gray-500 mb-3")
-            code = ui.input("Mã KH *").props("outlined dense").classes("w-full mb-2")
+            # Auto-generated code (read-only, refreshed each time the dialog opens)
+            code = ui.input("Mã KH (tự động)").props("outlined dense readonly").classes("w-full mb-2")
             name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
             email = ui.input("Email").props("outlined dense").classes("w-full mb-2")
             notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             err = ui.label().classes("text-red-500 text-sm")
 
+            def refresh_next_code():
+                """Pull a preview of the next code from the server."""
+                if not loc_id:
+                    code.value = ""
+                    return
+                try:
+                    with get_db() as conn:
+                        rows = conn.execute(
+                            "SELECT code FROM customers WHERE location_id = ? AND is_active = 1",
+                            (loc_id,),
+                        ).fetchall()
+                    import re as _re
+                    max_n = 0
+                    for r in rows:
+                        m = _re.match(r"^HV(\d+)$", (r["code"] or "").strip().upper())
+                        if m:
+                            try:
+                                max_n = max(max_n, int(m.group(1)))
+                            except ValueError:
+                                pass
+                    code.value = f"HV{max_n + 1:06d}"
+                except Exception:
+                    code.value = "HV000001"
+
             def handle_create():
                 err.set_text("")
                 if not loc_id:
                     err.set_text("Vui lòng chọn cơ sở trước khi thêm khách hàng")
                     return
-                if not code.value or not name.value:
-                    err.set_text("Vui lòng nhập mã KH và họ tên")
+                if not name.value:
+                    err.set_text("Vui lòng nhập họ tên")
                     return
 
                 user_id = app.storage.user.get("user_id", 1)
                 with get_db() as conn:
-                    existing = conn.execute(
+                    # Always auto-generate a fresh, unique code on save.
+                    cur_max = conn.execute(
+                        "SELECT code FROM customers WHERE location_id = ? AND is_active = 1",
+                        (loc_id,),
+                    ).fetchall()
+                    import re as _re
+                    max_n = 0
+                    for r in cur_max:
+                        m = _re.match(r"^HV(\d+)$", (r["code"] or "").strip().upper())
+                        if m:
+                            try:
+                                max_n = max(max_n, int(m.group(1)))
+                            except ValueError:
+                                pass
+                    new_code = f"HV{max_n + 1:06d}"
+                    while conn.execute(
                         "SELECT id FROM customers WHERE code = ? AND location_id = ?",
-                        (code.value, loc_id),
-                    ).fetchone()
-                    if existing:
-                        err.set_text("Mã KH đã tồn tại tại cơ sở này")
-                        return
+                        (new_code, loc_id),
+                    ).fetchone():
+                        max_n += 1
+                        new_code = f"HV{max_n + 1:06d}"
 
                     cur = conn.execute(
                         """INSERT INTO customers (location_id, code, full_name, phone, email, notes, created_by)
                            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                        (loc_id, code.value, name.value, phone.value, email.value, notes.value, user_id),
+                        (loc_id, new_code, name.value, phone.value, email.value, notes.value, user_id),
                     )
                     conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                            VALUES (?, ?, 'create', 'customer', ?, ?)""",
-                        (loc_id, user_id, cur.lastrowid, f'{{"code":"{code.value}","name":"{name.value}"}}'),
+                        (loc_id, user_id, cur.lastrowid, f'{{"code":"{new_code}","name":"{name.value}"}}'),
                     )
 
-                code.value = ""
                 name.value = ""
                 phone.value = ""
                 email.value = ""
                 notes.value = ""
                 create_dialog.close()
                 refresh_customers()
-                ui.notify("Đã thêm khách hàng vào cơ sở hiện tại", type="positive")
+                ui.notify(f"Đã thêm khách hàng với mã {new_code}", type="positive")
 
-            ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
+            with ui.row().classes("gap-2 justify-end w-full mt-2"):
+                ui.button("Đóng", on_click=create_dialog.close, icon="close").props("outlined")
+                ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary")
 
-        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
-            ui.label("Sửa khách hàng").classes("text-xl font-bold mb-4")
+            # Refresh code every time the dialog opens
+            create_dialog.on("open", refresh_next_code)
+            refresh_next_code()
+
+        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96 relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=edit_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Sửa khách hàng").classes("text-xl font-bold mb-4 pr-8")
             ui.label(f"Cơ sở: {location_name}").classes("text-sm text-gray-500 mb-3")
             edit_id = ui.number("edit_id").props("hidden")
+            e_code = ui.input("Mã KH (không thể sửa)").props("outlined dense readonly").classes("w-full mb-2")
             e_name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             e_phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
             e_email = ui.input("Email").props("outlined dense").classes("w-full mb-2")
@@ -294,10 +384,13 @@ def render():
                 refresh_customers()
                 ui.notify("Đã cập nhật khách hàng", type="positive")
 
-            ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
+            with ui.row().classes("gap-2 justify-end w-full mt-2"):
+                ui.button("Đóng", on_click=edit_dialog.close, icon="close").props("outlined")
+                ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary")
 
         def open_edit(row):
             edit_id.value = row.get("id")
+            e_code.value = row.get("code", "")
             e_name.value = row.get("full_name", "")
             e_phone.value = row.get("phone", "")
             e_email.value = row.get("email", "")

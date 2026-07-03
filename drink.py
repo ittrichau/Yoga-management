@@ -1,6 +1,6 @@
 """Drink management - location-filtered."""
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from nicegui import app, ui
 from pydantic import BaseModel
 
@@ -10,6 +10,7 @@ from auth import get_current_user, require_role, render_navbar, get_current_loca
 router = APIRouter(prefix="/api/drinks", tags=["drinks"])
 
 class DrinkCreate(BaseModel):
+    location_id: int | None = None
     name: str
     price: float
     description: str = ""
@@ -39,18 +40,23 @@ def list_drinks(location_id: int | None = None, user: dict = Depends(get_current
 
 @router.post("", status_code=201)
 def create_drink(data: DrinkCreate, user: dict = Depends(require_role("MANAGER"))):
+    location_id = data.location_id or user.get("location_id")
+    if not location_id:
+        raise HTTPException(status_code=400, detail="Chưa chọn chi nhánh")
+
     with get_db() as conn:
         cur = conn.execute(
             """INSERT INTO drinks (location_id, name, price, description, recipe, created_by)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (data.get("location_id"), data.name, data.price, data.description, data.recipe, user["id"]),
+            (location_id, data.name, data.price, data.description, data.recipe, user["id"]),
         )
+        drink_id = cur.lastrowid
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                VALUES (?, ?, 'create', 'drink', ?, ?)""",
-            (data.get("location_id"), user["id"], cur.lastrowid, f'{{"name":"{data.name}","price":{data.price}}}'),
+            (location_id, user["id"], drink_id, f'{{"name":"{data.name}","price":{data.price}}}'),
         )
-    return {"id": cur.lastrowid, "message": "Đồ uống đã được tạo"}
+    return {"id": drink_id, "message": "Đồ uống đã được tạo"}
 
 
 @router.put("/{drink_id}")
@@ -121,12 +127,12 @@ def render():
             if search:
                 like = f"%{search}%"
                 rows = conn.execute(
-                    "SELECT id, name, price, description FROM drinks WHERE is_active = 1 AND location_id = ? AND name LIKE ? ORDER BY name",
+                    "SELECT id, name, price, description, recipe FROM drinks WHERE is_active = 1 AND location_id = ? AND name LIKE ? ORDER BY name",
                     (loc_id, like),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT id, name, price, description FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
+                    "SELECT id, name, price, description, recipe FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
                     (loc_id,),
                 ).fetchall()
         result = []
@@ -148,7 +154,7 @@ def render():
             search_input = ui.input("Tìm kiếm đồ uống").props("outlined clearable dense").classes("flex-grow")
             ui.button("Tìm", icon="search", on_click=refresh).props("outlined")
             if role in ("MANAGER", "OWNER"):
-                ui.button("Thêm đồ uống", icon="add", on_click=create_dialog.open).props("unelevated").classes("btn-success")
+                ui.button("Thêm đồ uống", icon="add", on_click=lambda: create_dialog.open()).props("unelevated").classes("btn-success")
 
         drink_table = ui.table(
             columns=[
@@ -162,8 +168,10 @@ def render():
         ).classes("w-full")
 
         # Create dialog
-        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96"):
-            ui.label("Thêm đồ uống").classes("text-xl font-bold mb-4")
+        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Thêm đồ uống").classes("text-xl font-bold mb-4 pr-8")
             d_name = ui.input("Tên đồ uống *").props("outlined dense").classes("w-full mb-2")
             d_price = ui.number("Giá bán *", value=0, format="%.0f").props("outlined dense").classes("w-full mb-2")
             d_desc = ui.textarea("Mô tả").props("outlined dense").classes("w-full mb-2")
@@ -176,25 +184,30 @@ def render():
                     return
                 user_id = app.storage.user.get("user_id", 1)
                 with get_db() as conn:
-                    conn.execute(
-                        """INSERT INTO drinks (location_id, name, price, description, recipe, created_by)
-                           VALUES (?, ?, ?, ?, ?, ?)""",
-                        (loc_id, d_name.value, d_price.value, d_desc.value, d_recipe.value, user_id),
-                    )
-                    conn.execute(
+                                    cur = conn.execute(
+                                        """INSERT INTO drinks (location_id, name, price, description, recipe, created_by)
+                                           VALUES (?, ?, ?, ?, ?, ?)""",
+                                        (loc_id, d_name.value, d_price.value, d_desc.value, d_recipe.value, user_id),
+                                    )
+                                    drink_id = cur.lastrowid
+                                    conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                            VALUES (?, ?, 'create', 'drink', ?, ?)""",
-                        (loc_id, user_id, conn.lastrowid, f'{{"name":"{d_name.value}","price":{d_price.value}}}'),
+                        (loc_id, user_id, drink_id, f'{{"name":"{d_name.value}","price":{d_price.value}}}'),
                     )
                 create_dialog.close()
                 refresh()
                 ui.notify("Đã thêm đồ uống", type="positive")
 
-            ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
+            with ui.row().classes("gap-2 justify-end w-full mt-2"):
+                ui.button("Đóng", on_click=create_dialog.close, icon="close").props("outlined")
+                ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary")
 
         # Edit dialog
-        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96"):
-            ui.label("Sửa đồ uống").classes("text-xl font-bold mb-4")
+        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96 relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=edit_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Sửa đồ uống").classes("text-xl font-bold mb-4 pr-8")
             edit_id = ui.number("edit_id").props("hidden")
             e_name = ui.input("Tên đồ uống *").props("outlined dense").classes("w-full mb-2")
             e_price = ui.number("Giá bán *", value=0, format="%.0f").props("outlined dense").classes("w-full mb-2")
@@ -212,11 +225,33 @@ def render():
                         "UPDATE drinks SET name = ?, price = ?, description = ?, recipe = ?, updated_at = datetime('now','localtime') WHERE id = ?",
                         (e_name.value, e_price.value, e_desc.value, e_recipe.value, int(edit_id.value or 0)),
                     )
+                    conn.execute(
+                        """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+                           VALUES (?, ?, 'update', 'drink', ?, ?)""",
+                        (loc_id, user_id, int(edit_id.value or 0), f'{{"name":"{e_name.value}","price":{e_price.value}}}'),
+                    )
                 edit_dialog.close()
                 refresh()
                 ui.notify("Đã cập nhật đồ uống", type="positive")
 
-            ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary w-full mt-2")
+            with ui.row().classes("gap-2 justify-end w-full mt-2"):
+                ui.button("Đóng", on_click=edit_dialog.close, icon="close").props("outlined")
+                ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary")
+
+        def open_edit(row):
+            edit_id.value = row.get("id") or row.get("action")
+            e_name.value = row.get("name", "")
+            price_val = row.get("price", 0)
+            if isinstance(price_val, str):
+                price_val = price_val.replace("đ", "").replace(",", "").strip()
+            try:
+                e_price.value = float(price_val) if price_val else 0
+            except (TypeError, ValueError):
+                e_price.value = 0
+            e_desc.value = row.get("description", "")
+            e_recipe.value = row.get("recipe", "")
+            edit_err.set_text("")
+            edit_dialog.open()
 
         if role in ("MANAGER", "OWNER"):
             with ui.row().classes("gap-2 mb-4"):
@@ -225,16 +260,52 @@ def render():
 
         search_input.on("keyup.enter", refresh)
 
-        drink_table.add_slot(
-            "body-cell-action",
-            """
-            <q-td :props="props">
-                <q-btn flat color="primary" icon="edit" @click="$parent.$emit('edit_drink', props.row)">
-                    <q-tooltip>Sửa</q-tooltip>
-                </q-btn>
-            </q-td>
-            """,
-        )
+        if role == "OWNER":
+            drink_table.add_slot(
+                "body-cell-action",
+                """
+                <q-td :props="props">
+                    <q-btn flat round dense color="primary" icon="edit" @click="$parent.$emit('edit_drink', props.row)">
+                        <q-tooltip>Sửa</q-tooltip>
+                    </q-btn>
+                    <q-btn flat round dense color="negative" icon="delete" @click="$parent.$emit('delete_drink', props.row.id)">
+                        <q-tooltip>Vô hiệu hóa</q-tooltip>
+                    </q-btn>
+                </q-td>
+                """,
+            )
+        else:
+            drink_table.add_slot(
+                "body-cell-action",
+                """
+                <q-td :props="props">
+                    <q-btn flat round dense color="primary" icon="edit" @click="$parent.$emit('edit_drink', props.row)">
+                        <q-tooltip>Sửa</q-tooltip>
+                    </q-btn>
+                </q-td>
+                """,
+            )
+
+        def soft_delete_drink_ui(drink_id):
+            try:
+                with get_db() as conn:
+                    row = conn.execute("SELECT * FROM drinks WHERE id = ? AND is_active = 1", (int(drink_id),)).fetchone()
+                    if not row:
+                        ui.notify("Không tìm thấy đồ uống", type="warning")
+                        return
+                    conn.execute("UPDATE drinks SET is_active = 0, updated_at = datetime('now','localtime') WHERE id = ?", (int(drink_id),))
+                    user_id = app.storage.user.get("user_id", 1)
+                    conn.execute(
+                        """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+                           VALUES (?, ?, 'soft_delete', 'drink', ?, ?)""",
+                        (loc_id, user_id, int(drink_id), f'{{"name":"{row["name"]}"}}'),
+                    )
+                refresh()
+                ui.notify("Đã vô hiệu hóa đồ uống", type="positive")
+            except Exception as exc:
+                ui.notify(f"Lỗi: {exc}", type="negative")
+
         drink_table.on("edit_drink", lambda e: open_edit(e.args))
+        drink_table.on("delete_drink", lambda e: soft_delete_drink_ui(e.args))
 
         refresh()
