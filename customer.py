@@ -253,8 +253,6 @@ def render():
                 ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
             ui.label("Thêm khách hàng").classes("text-xl font-bold mb-4 pr-8")
             ui.label(f"Khách hàng sẽ thuộc: {location_name}").classes("text-sm text-gray-500 mb-3")
-            # Auto-generated code (read-only, refreshed each time the dialog opens)
-            code = ui.input("Mã KH (tự động)").props("outlined dense readonly").classes("w-full mb-2")
             name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
             email = ui.input("Email").props("outlined dense").classes("w-full mb-2")
