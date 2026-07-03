@@ -315,9 +315,6 @@ def render():
                 ui.button("Đóng", on_click=create_dialog.close, icon="close").props("outlined")
                 ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary")
 
-            # Refresh code every time the dialog opens
-            create_dialog.on("open", refresh_next_code)
-            refresh_next_code()
 
         with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96 relative"):
             with ui.element("div").classes("absolute top-2 right-2"):
