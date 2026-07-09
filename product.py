@@ -184,6 +184,7 @@ def render():
             d["sale_display"] = f"{d['sale_percent']:.0f}%" if d["sale_percent"] > 0 else "-"
             d["final_price"] = f"{sale_price:,.0f}đ"
             d["stock_status"] = "🔴 THIẾU" if d["current_stock"] <= d["min_stock"] else ("🟡 Thấp" if d["current_stock"] <= d["min_stock"] * 2 else "🟢 OK")
+            d["price_summary"] = d["final_price"]
             d["action"] = d["id"]
             result.append(d)
         product_table.rows = result
@@ -208,12 +209,8 @@ def render():
         product_table = ui.table(
             columns=[
                 {"name": "name", "label": "Tên sản phẩm", "field": "name"},
-                {"name": "type_label", "label": "Loại", "field": "type_label"},
-                {"name": "price_display", "label": "Giá gốc", "field": "price_display"},
-                {"name": "sale_display", "label": "Giảm giá", "field": "sale_display"},
-                {"name": "final_price", "label": "Giá bán", "field": "final_price"},
+                {"name": "price_summary", "label": "Giá", "field": "price_summary"},
                 {"name": "current_stock", "label": "Tồn kho", "field": "current_stock"},
-                {"name": "stock_status", "label": "Trạng thái", "field": "stock_status"},
                 {"name": "action", "label": "Thao tác", "field": "action"},
             ],
             rows=[],
@@ -338,6 +335,24 @@ def render():
                 ui.notify("Đã vô hiệu hóa sản phẩm", type="positive")
             except Exception as exc:
                 ui.notify(f"Lỗi: {exc}", type="negative")
+
+        product_table.add_slot(
+            "body-cell-price_summary",
+            """
+            <q-td :props="props">
+                <div v-if="Number(props.row.sale_percent || 0) > 0" class="column q-gutter-xs">
+                    <div class="row items-center no-wrap q-gutter-sm">
+                        <span class="text-weight-bold text-positive">{{ props.row.final_price }}</span>
+                        <q-badge color="orange" text-color="white" :label="'-' + Number(props.row.sale_percent || 0).toFixed(0) + '%'" />
+                    </div>
+                    <div class="text-caption text-grey-6">
+                        <span class="text-strike">{{ props.row.price_display }}</span>
+                    </div>
+                </div>
+                <div v-else class="text-weight-medium">{{ props.row.price_display }}</div>
+            </q-td>
+            """,
+        )
 
         # Action buttons based on role
         if role == "OWNER":
