@@ -65,7 +65,7 @@ if __name__ in {"__main__", "__mp_main__"}:
         app.add_static_files("/static", static_dir)
 
     # Viewport meta tag for mobile responsiveness
-    ui.add_head_html('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
+    ui.add_head_html('<meta name="viewport" content="width=device-width, initial-scale=1.0">', shared=True)
 
     ui.run(
         host=host,
