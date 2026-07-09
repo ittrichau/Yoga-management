@@ -169,6 +169,10 @@ header.q-header .text-white\/80 {
     background: var(--success-bg);
     border-color: var(--success);
 }
+.alert-card.birthday {
+    background: linear-gradient(135deg, #FFF0F5, #FFE4EC);
+    border-color: #E8A0BF;
+}
 
 /* ── Tables ────────────────────────────────────────────────────── */
 .q-table {

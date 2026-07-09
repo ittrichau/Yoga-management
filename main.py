@@ -13,6 +13,7 @@ from ingredient import router as ingredient_router
 from package import router as package_router
 from package_template import router as package_template_router
 from package_upgrade import router as package_upgrade_router
+from product import router as product_router
 from transaction import router as transaction_router
 from audit import router as audit_router
 from dashboard import router as dashboard_router
@@ -49,6 +50,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     app.include_router(package_router)
     app.include_router(package_template_router)
     app.include_router(package_upgrade_router)
+    app.include_router(product_router)
     app.include_router(transaction_router)
     app.include_router(audit_router)
     app.include_router(dashboard_router)
@@ -61,6 +63,9 @@ if __name__ in {"__main__", "__mp_main__"}:
     static_dir = Path(__file__).resolve().parent / "static"
     if static_dir.exists():
         app.add_static_files("/static", static_dir)
+
+    # Viewport meta tag for mobile responsiveness
+    ui.add_head_html('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
 
     ui.run(
         host=host,

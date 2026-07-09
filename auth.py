@@ -567,7 +567,7 @@ def render_navbar():
                         ui.menu_item(label, on_click=lambda p=path: ui.navigate.to(p))
 
                     ui.separator()
-                    for label, path in [("🥤 Đồ uống", "/drinks"), ("🧪 Nguyên liệu", "/ingredients")]:
+                    for label, path in [("🥤 Đồ uống", "/drinks"), ("🧪 Nguyên liệu", "/ingredients"), ("🧺 Sản phẩm", "/products")]:
                         ui.menu_item(label, on_click=lambda p=path: ui.navigate.to(p))
 
                     ui.separator()

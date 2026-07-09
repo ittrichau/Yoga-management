@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from database import get_db
 from auth import get_current_user, require_role, render_navbar, get_current_location_id
+from product import PRODUCT_TYPE_LABELS
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -14,8 +15,10 @@ router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 # ---------------------------------------------------------------------------
 class TransactionCreate(BaseModel):
     customer_id: int
-    drink_id: int
+    drink_id: int | None = None
+    product_id: int | None = None
     servings: float = 1
+    quantity: int = 1
     amount: float = 0
     notes: str = ""
     package_item_id: int | None = None
@@ -104,7 +107,7 @@ def get_today_transactions(location_id: int | None = None, user: dict = Depends(
 
 @router.post("", status_code=201)
 def create_transaction(data: TransactionCreate, user: dict = Depends(get_current_user)):
-    """Create a new transaction."""
+    """Create a new transaction (drink or product)."""
     with get_db() as conn:
         # Validate customer
         customer = conn.execute(
@@ -116,62 +119,101 @@ def create_transaction(data: TransactionCreate, user: dict = Depends(get_current
 
         loc_id = customer["location_id"]
 
-        # Validate drink
-        drink = conn.execute(
-            "SELECT id, name, price_per_serving FROM drinks WHERE id = ? AND is_active = 1 AND location_id = ?",
-            (data.drink_id, loc_id),
-        ).fetchone()
-        if drink is None:
-            raise HTTPException(status_code=404, detail="Đồ uống không tồn tại hoặc không thuộc cơ sở này")
+        # Validate: must have either drink_id or product_id
+        if not data.drink_id and not data.product_id:
+            raise HTTPException(status_code=400, detail="Vui lòng chọn đồ uống hoặc sản phẩm")
 
-        # Calculate amount if using direct payment
+        item_name = ""
         amount = data.amount
         package_item_id = data.package_item_id
 
-        # If using package, validate and deduct
-        if package_item_id:
-            package_item = conn.execute(
-                """SELECT pi.*, p.id as package_id, p.customer_id, p.location_id
-                   FROM package_items pi
-                   JOIN packages p ON p.id = pi.package_id
-                   WHERE pi.id = ? AND p.is_active = 1""",
-                (package_item_id,),
+        # Product transaction
+        if data.product_id:
+            product = conn.execute(
+                "SELECT id, name, price, sale_percent, current_stock FROM products WHERE id = ? AND is_active = 1 AND location_id = ?",
+                (data.product_id, loc_id),
             ).fetchone()
-            if package_item is None:
-                raise HTTPException(status_code=404, detail="Không tìm thấy gói hoặc gói đã bị vô hiệu hóa")
-            if package_item["customer_id"] != data.customer_id:
-                raise HTTPException(status_code=400, detail="Gói không thuộc khách hàng này")
-            if package_item["remaining_servings"] < data.servings:
-                raise HTTPException(status_code=400,
-                                    detail=f"Không đủ ly trong gói. Còn lại: {package_item['remaining_servings']:.1f}")
-            amount = 0
-        else:
+            if product is None:
+                raise HTTPException(status_code=404, detail="Sản phẩm không tồn tại hoặc không thuộc cơ sở này")
+            item_name = product["name"]
+            qty = data.quantity or 1
+            if product["current_stock"] < qty:
+                raise HTTPException(status_code=400, detail=f"Không đủ hàng trong kho. Còn: {product['current_stock']} cái")
+
             if amount == 0:
-                amount = drink["price_per_serving"] * data.servings
-            _deduct_ingredients(conn, data.drink_id, data.servings, loc_id)
+                sale_price = product["price"] * (1 - product["sale_percent"] / 100)
+                amount = sale_price * qty
 
-        # Insert transaction
-        cur = conn.execute(
-            """INSERT INTO transactions (location_id, customer_id, drink_id, package_item_id, servings, amount, notes, created_by)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (loc_id, data.customer_id, data.drink_id, package_item_id, data.servings, amount, data.notes, user["id"]),
-        )
-        tx_id = cur.lastrowid
-
-        # Deduct from package if using
-        if package_item_id:
+            # Deduct stock
+            conn.execute("UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now','localtime') WHERE id = ?",
+                         (qty, data.product_id))
             conn.execute(
-                "UPDATE package_items SET remaining_servings = remaining_servings - ? WHERE id = ?",
-                (data.servings, package_item_id),
+                """INSERT INTO product_stock_adjustments (location_id, product_id, adjustment_type, quantity, reason, created_by)
+                   VALUES (?, ?, 'remove', ?, ?, ?)""",
+                (loc_id, data.product_id, qty, f"Bán cho khách: {customer['full_name']}", user["id"]),
             )
 
+            # Insert transaction
+            cur = conn.execute(
+                """INSERT INTO transactions (location_id, customer_id, product_id, quantity, amount, notes, created_by)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (loc_id, data.customer_id, data.product_id, qty, amount, data.notes, user["id"]),
+            )
+            tx_id = cur.lastrowid
+            payment_type = "cash"
+
+        # Drink transaction (original logic)
+        else:
+            drink = conn.execute(
+                "SELECT id, name, price_per_serving FROM drinks WHERE id = ? AND is_active = 1 AND location_id = ?",
+                (data.drink_id, loc_id),
+            ).fetchone()
+            if drink is None:
+                raise HTTPException(status_code=404, detail="Đồ uống không tồn tại hoặc không thuộc cơ sở này")
+            item_name = drink["name"]
+
+            if package_item_id:
+                package_item = conn.execute(
+                    """SELECT pi.*, p.id as package_id, p.customer_id, p.location_id
+                       FROM package_items pi
+                       JOIN packages p ON p.id = pi.package_id
+                       WHERE pi.id = ? AND p.is_active = 1""",
+                    (package_item_id,),
+                ).fetchone()
+                if package_item is None:
+                    raise HTTPException(status_code=404, detail="Không tìm thấy gói hoặc gói đã bị vô hiệu hóa")
+                if package_item["customer_id"] != data.customer_id:
+                    raise HTTPException(status_code=400, detail="Gói không thuộc khách hàng này")
+                if package_item["remaining_servings"] < data.servings:
+                    raise HTTPException(status_code=400,
+                                        detail=f"Không đủ ly trong gói. Còn lại: {package_item['remaining_servings']:.1f}")
+                amount = 0
+            else:
+                if amount == 0:
+                    amount = drink["price_per_serving"] * data.servings
+                _deduct_ingredients(conn, data.drink_id, data.servings, loc_id)
+
+            cur = conn.execute(
+                """INSERT INTO transactions (location_id, customer_id, drink_id, package_item_id, servings, amount, notes, created_by)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (loc_id, data.customer_id, data.drink_id, package_item_id, data.servings, amount, data.notes, user["id"]),
+            )
+            tx_id = cur.lastrowid
+
+            if package_item_id:
+                conn.execute(
+                    "UPDATE package_items SET remaining_servings = remaining_servings - ? WHERE id = ?",
+                    (data.servings, package_item_id),
+                )
+            payment_type = "package" if package_item_id else "cash"
+
         # Audit log
-        payment_type = "package" if package_item_id else "cash"
+        is_product = bool(data.product_id)
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                VALUES (?, ?, 'create', 'transaction', ?, ?)""",
             (loc_id, user["id"], tx_id,
-             f'{{"customer": "{customer["full_name"]}", "drink": "{drink["name"]}", "servings": {data.servings}, "amount": {amount}, "type": "{payment_type}"}}'),
+             f'{{"customer": "{customer["full_name"]}", "item": "{item_name}", "type": "{payment_type}", "is_product": {str(is_product).lower()}, "amount": {amount}}}'),
         )
 
     return {"id": tx_id, "message": "Giao dịch đã được tạo", "amount": amount, "type": payment_type}
@@ -298,18 +340,39 @@ def render():
 
     customer_select.on("update:model-value", load_packages)
 
-    # Step 2: Select drink
-    with get_db() as conn:
-        all_drinks = conn.execute(
-            "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
-            (loc_id,),
-        ).fetchall()
-    drink_options = {r["id"]: f"{r['name']} ({r['price_per_serving']:,.0f}đ/ly)" for r in all_drinks}
-    drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
-    if drink_options:
-        drink_select.set_value(list(drink_options.keys())[0])
+    # Step 2: Choose type (Drink or Product) via Tabs
+    sale_type = ui.tabs().classes("w-full mb-2")
+    drink_tab = ui.tab("🥤 Đồ uống").props("dense")
+    product_tab = ui.tab("🧺 Sản phẩm (thảm, quần áo...)").props("dense")
+    with ui.tab_panels(sale_type, value=drink_tab).classes("w-full"):
+        with ui.tab_panel(drink_tab).classes("p-0"):
+            with get_db() as conn:
+                all_drinks = conn.execute(
+                    "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
+                    (loc_id,),
+                ).fetchall()
+            drink_options = {r["id"]: f"{r['name']} ({r['price_per_serving']:,.0f}đ/ly)" for r in all_drinks}
+            drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
+            if drink_options:
+                drink_select.set_value(list(drink_options.keys())[0])
+            servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined dense").classes("w-full mb-2")
 
-    servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined dense").classes("w-full mb-2")
+        with ui.tab_panel(product_tab).classes("p-0"):
+            with get_db() as conn:
+                all_products = conn.execute(
+                    "SELECT id, name, price, sale_percent, current_stock, product_type FROM products WHERE is_active = 1 AND location_id = ? AND current_stock > 0 ORDER BY name",
+                    (loc_id,),
+                ).fetchall()
+            product_options = {}
+            for p in all_products:
+                sale_price = p["price"] * (1 - p["sale_percent"] / 100)
+                ptype = PRODUCT_TYPE_LABELS.get(p["product_type"], p["product_type"])
+                product_options[p["id"]] = f"{p['name']} ({sale_price:,.0f}đ) - Còn {p['current_stock']} cái [{ptype}]"
+            product_select = ui.select(product_options, label="Sản phẩm *").props("outlined dense").classes("w-full mb-2")
+            if product_options:
+                product_select.set_value(list(product_options.keys())[0])
+            product_qty = ui.number("Số lượng", value=1, min=1, step=1).props("outlined dense").classes("w-full mb-2")
+
     amount = ui.number("Số tiền (VNĐ)", value=0).props("outlined dense").classes("w-full mb-2")
     notes = ui.input("Ghi chú").props("outlined dense").classes("w-full mb-4")
 
@@ -350,19 +413,11 @@ def render():
         if not customer_id:
             err.set_text("Vui lòng chọn khách hàng")
             return
-        drink_id = drink_select.value
-        if not drink_id:
-            err.set_text("Vui lòng chọn đồ uống")
-            return
-        qty = servings.value or 1
-        amt = amount.value or 0
+
         pkg_item_id = package_select.value or None
-
-        if not pkg_item_id and amt == 0:
-            err.set_text("Vui lòng nhập số tiền hoặc chọn gói trả trước")
-            return
-
+        amt = amount.value or 0
         user_id = app.storage.user.get("user_id", 1)
+        is_product_mode = (sale_type.value == product_tab)
 
         try:
             with get_db() as conn:
@@ -374,56 +429,90 @@ def render():
                     err.set_text("Khách hàng không tồn tại hoặc đã bị vô hiệu hóa")
                     return
 
-                drink = conn.execute(
-                    "SELECT id, name, price_per_serving FROM drinks WHERE id = ? AND is_active = 1 AND location_id = ?",
-                    (drink_id, loc_id),
-                ).fetchone()
-                if drink is None:
-                    err.set_text("Đồ uống không tồn tại hoặc đã bị vô hiệu hóa")
-                    return
-
-                if pkg_item_id:
-                    package_item = conn.execute(
-                        """SELECT pi.*, p.name as pkg_name, p.id as pkg_id, p.location_id
-                           FROM package_items pi
-                           JOIN packages p ON p.id = pi.package_id
-                           WHERE pi.id = ? AND p.is_active = 1 AND p.customer_id = ? AND p.location_id = ?""",
-                        (pkg_item_id, customer_id, loc_id),
+                if is_product_mode:
+                    product_id = product_select.value
+                    if not product_id:
+                        err.set_text("Vui lòng chọn sản phẩm")
+                        return
+                    product = conn.execute(
+                        "SELECT id, name, price, sale_percent, current_stock FROM products WHERE id = ? AND is_active = 1 AND location_id = ?",
+                        (product_id, loc_id),
                     ).fetchone()
-                    if package_item is None:
-                        err.set_text("Gói không hợp lệ hoặc không thuộc khách hàng này")
+                    if product is None:
+                        err.set_text("Sản phẩm không tồn tại hoặc đã bị vô hiệu hóa")
                         return
-                    if package_item["remaining_servings"] < qty:
-                        err.set_text(f"Không đủ ly trong gói. Còn {package_item['remaining_servings']:.0f} ly")
+                    qty = product_qty.value or 1
+                    if product["current_stock"] < qty:
+                        err.set_text(f"Không đủ hàng trong kho. Còn: {product['current_stock']} cái")
                         return
-                    amt = 0
-                else:
                     if amt == 0:
-                        amt = drink["price_per_serving"] * qty
-                    _deduct_ingredients(conn, drink_id, qty, loc_id)
-
-                cur = conn.execute(
-                    """INSERT INTO transactions (location_id, customer_id, drink_id, package_item_id, servings, amount, notes, created_by)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (loc_id, customer_id, drink_id, pkg_item_id, qty, amt, notes.value, user_id),
-                )
-                tx_id = cur.lastrowid
-
-                if pkg_item_id:
-                    conn.execute(
-                        "UPDATE package_items SET remaining_servings = remaining_servings - ? WHERE id = ?",
-                        (qty, pkg_item_id),
+                        sale_price = product["price"] * (1 - product["sale_percent"] / 100)
+                        amt = sale_price * qty
+                    conn.execute("UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now','localtime') WHERE id = ?",
+                                 (qty, product_id))
+                    cur = conn.execute(
+                        """INSERT INTO transactions (location_id, customer_id, product_id, quantity, amount, notes, created_by)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (loc_id, customer_id, product_id, qty, amt, notes.value, user_id),
                     )
+                    tx_id = cur.lastrowid
+                    item_name = product["name"]
+                    desc = f"{qty} cái {product['name']} cho {customer['full_name']}. Thu {amt:,.0f}đ"
+                else:
+                    drink_id = drink_select.value
+                    if not drink_id:
+                        err.set_text("Vui lòng chọn đồ uống")
+                        return
+                    drink = conn.execute(
+                        "SELECT id, name, price_per_serving FROM drinks WHERE id = ? AND is_active = 1 AND location_id = ?",
+                        (drink_id, loc_id),
+                    ).fetchone()
+                    if drink is None:
+                        err.set_text("Đồ uống không tồn tại hoặc đã bị vô hiệu hóa")
+                        return
+                    qty = servings.value or 1
+                    if pkg_item_id:
+                        package_item = conn.execute(
+                            """SELECT pi.*, p.name as pkg_name, p.id as pkg_id, p.location_id
+                               FROM package_items pi
+                               JOIN packages p ON p.id = pi.package_id
+                               WHERE pi.id = ? AND p.is_active = 1 AND p.customer_id = ? AND p.location_id = ?""",
+                            (pkg_item_id, customer_id, loc_id),
+                        ).fetchone()
+                        if package_item is None:
+                            err.set_text("Gói không hợp lệ hoặc không thuộc khách hàng này")
+                            return
+                        if package_item["remaining_servings"] < qty:
+                            err.set_text(f"Không đủ ly trong gói. Còn {package_item['remaining_servings']:.0f} ly")
+                            return
+                        amt = 0
+                    else:
+                        if amt == 0:
+                            amt = drink["price_per_serving"] * qty
+                        _deduct_ingredients(conn, drink_id, qty, loc_id)
+                    cur = conn.execute(
+                        """INSERT INTO transactions (location_id, customer_id, drink_id, package_item_id, servings, amount, notes, created_by)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (loc_id, customer_id, drink_id, pkg_item_id, qty, amt, notes.value, user_id),
+                    )
+                    tx_id = cur.lastrowid
+                    if pkg_item_id:
+                        conn.execute(
+                            "UPDATE package_items SET remaining_servings = remaining_servings - ? WHERE id = ?",
+                            (qty, pkg_item_id),
+                        )
+                    item_name = drink["name"]
+                    desc = f"✅ Đã bán {qty} ly {drink['name']} cho {customer['full_name']}. {'(Gói)' if pkg_item_id else f'Thu {amt:,.0f}đ'}"
 
-                payment_type = "gói" if pkg_item_id else "tiền mặt"
+                payment_type = "product" if is_product_mode else ("gói" if pkg_item_id else "tiền mặt")
                 conn.execute(
                     """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                        VALUES (?, ?, 'create', 'transaction', ?, ?)""",
                     (loc_id, user_id, tx_id,
-                     f'{{"customer": "{customer["full_name"]}", "drink": "{drink["name"]}", "servings": {qty}, "amount": {amt}, "type": "{payment_type}"}}'),
+                     f'{{"customer": "{customer["full_name"]}", "item": "{item_name}", "amount": {amt}, "type": "{payment_type}", "is_product": {str(is_product_mode).lower()}}}'),
                 )
 
-            success.set_text(f"✅ Đã bán {qty} ly {drink['name']} cho {customer['full_name']}. {'(Gói)' if pkg_item_id else f'Thu {amt:,.0f}đ'}")
+            success.set_text(desc)
             ui.notify("Bán hàng thành công!", type="positive")
             load_packages()
             refresh_today_table()
@@ -455,28 +544,31 @@ def render():
         with get_db() as conn:
             rows = conn.execute(
                 """SELECT t.*, c.code as customer_code, c.full_name as customer_name,
-                           d.name as drink_name, u.full_name as user_name
+                           COALESCE(d.name, p.name) as item_name, u.full_name as user_name
                     FROM transactions t
                     JOIN customers c ON c.id = t.customer_id
-                    JOIN drinks d ON d.id = t.drink_id
                     JOIN users u ON u.id = t.created_by
+                    LEFT JOIN drinks d ON d.id = t.drink_id
+                    LEFT JOIN products p ON p.id = t.product_id
                     WHERE t.created_at LIKE ? AND t.location_id = ?
                     ORDER BY t.created_at DESC LIMIT 50""",
                 (today, loc_id),
             ).fetchall()
-        today_table.rows = [
-            {
+        today_table.rows = []
+        for r in rows:
+            is_product = bool(r["product_id"])
+            qty = r["quantity"] if is_product and r["quantity"] else r["servings"]
+            unit = "cái" if is_product else "ly"
+            today_table.rows.append({
                 "id": r["id"],
                 "time": r["created_at"][11:19],
                 "customer": f"{r['customer_code']} - {r['customer_name']}",
-                "drink": r["drink_name"],
-                "qty": f"{r['servings']:.0f}",
+                "drink": r["item_name"] or "—",
+                "qty": f"{qty:,.0f} {unit}",
                 "amount": f"{r['amount']:,.0f}đ" if r["amount"] > 0 else "📦 Gói",
-                "type": "Gói" if r["package_item_id"] else "Tiền mặt",
+                "type": "Sản phẩm" if is_product else ("Gói" if r["package_item_id"] else "Tiền mặt"),
                 "by": r["user_name"],
-            }
-            for r in rows
-        ]
+            })
         today_table.update()
 
     ui.button("Làm mới", on_click=refresh_today_table, icon="refresh").props("outlined").classes("mt-2")

@@ -242,6 +242,10 @@ def render():
             "SELECT COUNT(*) as cnt FROM ingredients WHERE is_active = 1 AND current_stock <= min_stock AND location_id = ?",
             (loc_id,),
         ).fetchone()["cnt"]
+        d["low_product_count"] = conn.execute(
+            "SELECT COUNT(*) as cnt FROM products WHERE is_active = 1 AND current_stock <= min_stock AND location_id = ?",
+            (loc_id,),
+        ).fetchone()["cnt"]
         d["today_pt_revenue"] = conn.execute(
             "SELECT COALESCE(SUM(total_amount), 0) as total FROM pt_sessions WHERE location_id = ? AND session_date = ?",
             (loc_id, today_prefix[:-1]),
@@ -254,19 +258,28 @@ def render():
             "SELECT name, unit, current_stock, min_stock FROM ingredients WHERE is_active = 1 AND current_stock <= min_stock AND location_id = ? ORDER BY name",
             (loc_id,),
         ).fetchall()
+        d["low_product_items"] = conn.execute(
+            "SELECT name, product_type, current_stock, min_stock FROM products WHERE is_active = 1 AND current_stock <= min_stock AND location_id = ? ORDER BY name",
+            (loc_id,),
+        ).fetchall()
         d["recent_tx"] = conn.execute(
             """SELECT t.*, c.full_name as customer_name, c.code as customer_code,
-                       d.name as drink_name, u.full_name as user_name
+                       COALESCE(d.name, p.name) as drink_name, u.full_name as user_name
                 FROM transactions t
                 JOIN customers c ON c.id = t.customer_id
-                JOIN drinks d ON d.id = t.drink_id
                 JOIN users u ON u.id = t.created_by
+                LEFT JOIN drinks d ON d.id = t.drink_id
+                LEFT JOIN products p ON p.id = t.product_id
                 WHERE t.location_id = ?
                 ORDER BY t.created_at DESC LIMIT 5""",
             (loc_id,),
         ).fetchall()
         d["all_stock"] = conn.execute(
             "SELECT name, unit, current_stock, min_stock FROM ingredients WHERE is_active = 1 AND location_id = ? ORDER BY name",
+            (loc_id,),
+        ).fetchall()
+        d["all_product_stock"] = conn.execute(
+            "SELECT id, name, product_type, current_stock, min_stock, price, sale_percent FROM products WHERE is_active = 1 AND location_id = ? ORDER BY name",
             (loc_id,),
         ).fetchall()
 
@@ -312,13 +325,67 @@ def render():
                 ui.label(f"PT hôm nay: {int(d['today_pt_revenue'] or 0):,}đ").classes("text-lg font-bold text-orange-700")
 
         # Low Stock Alerts
-        if d["low_stock_count"] > 0:
+        if d["low_stock_count"] > 0 or d["low_product_count"] > 0:
             with ui.element("div").classes("custom-card p-4 mt-4"):
                 ui.label("⚠️ Cảnh báo tồn kho").classes("section-header")
-                with ui.element("div").classes("alert-card danger mt-2"):
-                    ui.label(f"{d['low_stock_count']} nguyên liệu sắp HẾT!").classes("font-bold mb-1")
-                    for p in d["low_stock_items"]:
-                        ui.label(f"• {p['name']}: còn {p['current_stock']:.0f} {p['unit']} (tối thiểu {p['min_stock']:.0f})").classes("text-sm ml-2")
+                if d["low_stock_count"] > 0:
+                    with ui.element("div").classes("alert-card danger mt-2"):
+                        ui.label(f"{d['low_stock_count']} nguyên liệu sắp HẾT!").classes("font-bold mb-1")
+                        for p in d["low_stock_items"]:
+                            ui.label(f"• {p['name']}: còn {p['current_stock']:.0f} {p['unit']} (tối thiểu {p['min_stock']:.0f})").classes("text-sm ml-2")
+                if d["low_product_count"] > 0:
+                    from product import PRODUCT_TYPE_LABELS
+                    with ui.element("div").classes("alert-card warning mt-2"):
+                        ui.label(f"{d['low_product_count']} sản phẩm (thảm, quần áo...) sắp HẾT!").classes("font-bold mb-1")
+                        for p in d["low_product_items"]:
+                            ptype = PRODUCT_TYPE_LABELS.get(p["product_type"], p["product_type"])
+                            ui.label(f"• {p['name']} [{ptype}]: còn {p['current_stock']} cái (tối thiểu {p['min_stock']})").classes("text-sm ml-2")
+
+        # Upcoming Birthdays (next 3 days)
+        with get_db() as conn:
+            today_dt = datetime.now(timezone.utc).date()
+            raw_bdays = conn.execute(
+                "SELECT id, code, full_name, phone, birth_date FROM customers WHERE is_active = 1 AND location_id = ? AND birth_date IS NOT NULL AND birth_date != '' ORDER BY full_name",
+                (loc_id,),
+            ).fetchall()
+        birthday_alerts = []
+        for r in raw_bdays:
+            bd_str = r["birth_date"]
+            if not bd_str:
+                continue
+            try:
+                bd = datetime.strptime(bd_str, "%Y-%m-%d").date()
+            except ValueError:
+                continue
+            try:
+                next_bd = bd.replace(year=today_dt.year)
+            except ValueError:
+                next_bd = bd.replace(year=today_dt.year, day=28)
+            if next_bd < today_dt:
+                try:
+                    next_bd = bd.replace(year=today_dt.year + 1)
+                except ValueError:
+                    next_bd = bd.replace(year=today_dt.year + 1, day=28)
+            days_until = (next_bd - today_dt).days
+            if 0 <= days_until <= 3:
+                age = today_dt.year - bd.year + (1 if next_bd.year > today_dt.year else 0)
+                birthday_alerts.append({
+                    "code": r["code"],
+                    "full_name": r["full_name"],
+                    "phone": r["phone"] or "",
+                    "birth_date": bd.strftime("%d/%m/%Y"),
+                    "days_until": days_until,
+                    "age": age,
+                })
+        birthday_alerts.sort(key=lambda x: x["days_until"])
+        if birthday_alerts:
+            with ui.element("div").classes("custom-card p-4 mt-4"):
+                ui.label(f"🎂 Sắp sinh nhật ({len(birthday_alerts)} khách hàng)").classes("section-header")
+                for ba in birthday_alerts:
+                    emoji = "🎉" if ba["days_until"] == 0 else "🎂"
+                    day_text = "HÔM NAY!" if ba["days_until"] == 0 else f"Còn {ba['days_until']} ngày"
+                    with ui.element("div").classes("alert-card birthday"):
+                        ui.label(f"{emoji} {ba['code']} - {ba['full_name']} • Ngày sinh: {ba['birth_date']} • {day_text}").classes("text-sm font-medium")
 
         # Recent Transactions
         with ui.element("div").classes("custom-card p-4 mt-4"):
@@ -469,3 +536,42 @@ def render():
                                 "status": status,
                             })
             stock_table.update()
+
+        # Product Stock Overview
+        if d["all_product_stock"]:
+            with ui.element("div").classes("custom-card p-4 mt-4"):
+                ui.label("🏪 Tổng quan tồn kho sản phẩm (thảm, quần áo...)").classes("section-header")
+
+                product_stock_table = ui.table(
+                    columns=[
+                        {"name": "name", "label": "Sản phẩm", "field": "name"},
+                        {"name": "type", "label": "Loại", "field": "type"},
+                        {"name": "stock", "label": "Tồn kho", "field": "stock"},
+                        {"name": "min", "label": "Tối thiểu", "field": "min"},
+                        {"name": "price", "label": "Giá", "field": "price"},
+                        {"name": "status", "label": "Trạng thái", "field": "status"},
+                    ],
+                    rows=[],
+                    row_key="id",
+                ).classes("w-full mt-2")
+
+                from product import PRODUCT_TYPE_LABELS
+                product_stock_table.rows = []
+                for s in d["all_product_stock"]:
+                    sale_price = s["price"] * (1 - s["sale_percent"] / 100) if s["sale_percent"] else s["price"]
+                    if s["current_stock"] <= s["min_stock"]:
+                        status = "🔴 THIẾU"
+                    elif s["current_stock"] <= s["min_stock"] * 2:
+                        status = "🟡 Cảnh báo"
+                    else:
+                        status = "🟢 OK"
+                    product_stock_table.rows.append({
+                        "id": s["id"],
+                        "name": s["name"],
+                        "type": PRODUCT_TYPE_LABELS.get(s["product_type"], s["product_type"]),
+                        "stock": str(s["current_stock"]),
+                        "min": str(s["min_stock"]),
+                        "price": f"{sale_price:,.0f}đ",
+                        "status": status,
+                    })
+                product_stock_table.update()

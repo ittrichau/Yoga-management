@@ -1,6 +1,6 @@
 """Customer management and check-in - filtered by location."""
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from nicegui import app, ui
 from pydantic import BaseModel
@@ -14,13 +14,13 @@ class CustomerCreate(BaseModel):
     code: str | None = None  # Auto-generated when omitted
     full_name: str
     phone: str = ""
-    email: str = ""
+    birth_date: str | None = None
     notes: str = ""
 
 class CustomerUpdate(BaseModel):
     full_name: str | None = None
     phone: str | None = None
-    email: str | None = None
+    birth_date: str | None = None
     notes: str | None = None
 
 
@@ -67,7 +67,7 @@ def list_customers(search: str = "", location_id: int | None = None, user: dict 
         if search:
             like = f"%{search}%"
             rows = conn.execute(
-                """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
+                """SELECT id, code, full_name, phone, birth_date, notes, is_active, created_at, updated_at, location_id
                    FROM customers
                    WHERE is_active = 1
                      AND location_id = ?
@@ -77,7 +77,7 @@ def list_customers(search: str = "", location_id: int | None = None, user: dict 
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT id, code, full_name, phone, email, notes, is_active, created_at, updated_at, location_id
+                """SELECT id, code, full_name, phone, birth_date, notes, is_active, created_at, updated_at, location_id
                    FROM customers
                    WHERE is_active = 1
                      AND location_id = ?
@@ -121,9 +121,9 @@ def create_customer(data: CustomerCreate, user: dict = Depends(get_current_user)
         if existing:
             raise HTTPException(status_code=400, detail="Mã KH đã tồn tại tại cơ sở này")
         cur = conn.execute(
-            """INSERT INTO customers (location_id, code, full_name, phone, email, notes, created_by)
+            """INSERT INTO customers (location_id, code, full_name, phone, birth_date, notes, created_by)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (location_id, code, data.full_name, data.phone, data.email, data.notes, user["id"]),
+            (location_id, code, data.full_name, data.phone, data.birth_date, data.notes, user["id"]),
         )
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
@@ -147,7 +147,7 @@ def update_customer(customer_id: int, data: CustomerUpdate, user: dict = Depends
         if row is None:
             raise HTTPException(status_code=404, detail="Không tìm thấy khách hàng tại cơ sở hiện tại")
         updates = {}
-        for field in ["full_name", "phone", "email", "notes"]:
+        for field in ["full_name", "phone", "birth_date", "notes"]:
             val = getattr(data, field)
             if val is not None:
                 updates[field] = val
@@ -187,6 +187,61 @@ def checkin_customer(customer_id: int, user: dict = Depends(get_current_user)):
     return {"message": "Check-in đã được ghi nhận", "time": now}
 
 
+# ==================== Birthday alerts API ====================
+@router.get("/upcoming-birthdays")
+def upcoming_birthdays(user: dict = Depends(get_current_user)):
+    """Return customers with birthdays in the next 3 days, for the current location."""
+    loc_id = get_current_location_id()
+    if not loc_id:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở")
+
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT id, code, full_name, phone, birth_date
+               FROM customers
+               WHERE is_active = 1 AND location_id = ? AND birth_date IS NOT NULL AND birth_date != ''
+               ORDER BY full_name""",
+            (loc_id,),
+        ).fetchall()
+
+    today = datetime.now(timezone.utc).date()
+    upcoming = []
+    for r in rows:
+        bd_str = r["birth_date"]
+        if not bd_str:
+            continue
+        try:
+            bd = datetime.strptime(bd_str, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        # Calculate next birthday (this year or next)
+        try:
+            next_bd = bd.replace(year=today.year)
+        except ValueError:
+            # Feb 29 on non-leap year → use Feb 28
+            next_bd = bd.replace(year=today.year, day=28)
+        if next_bd < today:
+            try:
+                next_bd = bd.replace(year=today.year + 1)
+            except ValueError:
+                next_bd = bd.replace(year=today.year + 1, day=28)
+        days_until = (next_bd - today).days
+        if 0 <= days_until <= 3:
+            upcoming.append({
+                "id": r["id"],
+                "code": r["code"],
+                "full_name": r["full_name"],
+                "phone": r["phone"],
+                "birth_date": bd.strftime("%d/%m/%Y"),
+                "days_until": days_until,
+                "age": today.year - bd.year if next_bd.year == today.year else today.year - bd.year + 1,
+            })
+
+    # Sort by days_until (closest first)
+    upcoming.sort(key=lambda x: x["days_until"])
+    return upcoming
+
+
 # ==================== NiceGUI UI ====================
 @ui.page("/customers")
 def customers_page():
@@ -224,11 +279,21 @@ def render():
                 {"name": "code", "label": "Mã KH", "field": "code"},
                 {"name": "name", "label": "Họ và tên", "field": "full_name"},
                 {"name": "phone", "label": "Số điện thoại", "field": "phone"},
+                {"name": "birth_date", "label": "Ngày sinh", "field": "birth_date"},
                 {"name": "action", "label": "Thao tác", "field": "action"},
             ],
             rows=[],
             row_key="id",
         ).classes("w-full")
+
+        def _fmt_birth_date(bd):
+            """Convert YYYY-MM-DD to DD/MM/YYYY for display."""
+            if not bd:
+                return ""
+            try:
+                return datetime.strptime(bd, "%Y-%m-%d").strftime("%d/%m/%Y")
+            except ValueError:
+                return bd
 
         def refresh_customers():
             with get_db() as conn:
@@ -236,16 +301,19 @@ def render():
                 if search:
                     like = f"%{search}%"
                     rows = conn.execute(
-                        "SELECT id, code, full_name, phone, email, notes FROM customers WHERE is_active = 1 AND location_id = ? AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?) ORDER BY full_name",
+                        "SELECT id, code, full_name, phone, birth_date, notes FROM customers WHERE is_active = 1 AND location_id = ? AND (code LIKE ? OR full_name LIKE ? OR phone LIKE ?) ORDER BY full_name",
                         (loc_id, like, like, like),
                     ).fetchall()
                 else:
                     rows = conn.execute(
-                        "SELECT id, code, full_name, phone, email, notes FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name",
+                        "SELECT id, code, full_name, phone, birth_date, notes FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name",
                         (loc_id,),
                     ).fetchall()
 
-            customer_table.rows = [{**dict(r), "action": r["id"]} for r in rows]
+            customer_table.rows = [
+                {**dict(r), "birth_date": _fmt_birth_date(r.get("birth_date")), "action": r["id"]}
+                for r in rows
+            ]
             customer_table.update()
 
         with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 relative"):
@@ -255,9 +323,20 @@ def render():
             ui.label(f"Khách hàng sẽ thuộc: {location_name}").classes("text-sm text-gray-500 mb-3")
             name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
-            email = ui.input("Email").props("outlined dense").classes("w-full mb-2")
+            birth_date = ui.input("Ngày sinh (DD/MM/YYYY)").props("outlined dense mask='##/##/####'").classes("w-full mb-2")
             notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             err = ui.label().classes("text-red-500 text-sm")
+
+            def _parse_birth_date(raw: str) -> str | None:
+                """Parse DD/MM/YYYY and return YYYY-MM-DD or None."""
+                raw = (raw or "").strip()
+                if not raw:
+                    return None
+                try:
+                    dt = datetime.strptime(raw, "%d/%m/%Y")
+                    return dt.strftime("%Y-%m-%d")
+                except ValueError:
+                    return None
 
             def handle_create():
                 err.set_text("")
@@ -267,6 +346,8 @@ def render():
                 if not name.value:
                     err.set_text("Vui lòng nhập họ tên")
                     return
+
+                parsed_bd = _parse_birth_date(birth_date.value)
 
                 user_id = app.storage.user.get("user_id", 1)
                 with get_db() as conn:
@@ -293,9 +374,9 @@ def render():
                         new_code = f"HV{max_n + 1:06d}"
 
                     cur = conn.execute(
-                        """INSERT INTO customers (location_id, code, full_name, phone, email, notes, created_by)
+                        """INSERT INTO customers (location_id, code, full_name, phone, birth_date, notes, created_by)
                            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                        (loc_id, new_code, name.value, phone.value, email.value, notes.value, user_id),
+                        (loc_id, new_code, name.value, phone.value, parsed_bd, notes.value, user_id),
                     )
                     conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
@@ -305,7 +386,7 @@ def render():
 
                 name.value = ""
                 phone.value = ""
-                email.value = ""
+                birth_date.value = ""
                 notes.value = ""
                 create_dialog.close()
                 refresh_customers()
@@ -325,9 +406,20 @@ def render():
             e_code = ui.input("Mã KH (không thể sửa)").props("outlined dense readonly").classes("w-full mb-2")
             e_name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             e_phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
-            e_email = ui.input("Email").props("outlined dense").classes("w-full mb-2")
+            e_birth_date = ui.input("Ngày sinh (DD/MM/YYYY)").props("outlined dense mask='##/##/####'").classes("w-full mb-2")
             e_notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             edit_err = ui.label().classes("text-red-500 text-sm")
+
+            def _parse_birth_date_edit(raw: str) -> str | None:
+                """Parse DD/MM/YYYY and return YYYY-MM-DD or None."""
+                raw = (raw or "").strip()
+                if not raw:
+                    return None
+                try:
+                    dt = datetime.strptime(raw, "%d/%m/%Y")
+                    return dt.strftime("%Y-%m-%d")
+                except ValueError:
+                    return None
 
             def handle_edit():
                 edit_err.set_text("")
@@ -338,12 +430,13 @@ def render():
                     edit_err.set_text("Vui lòng nhập họ tên")
                     return
 
+                parsed_bd = _parse_birth_date_edit(e_birth_date.value)
                 user_id = app.storage.user.get("user_id", 1)
                 customer_id = int(edit_id.value or 0)
                 with get_db() as conn:
                     conn.execute(
-                        "UPDATE customers SET full_name = ?, phone = ?, email = ?, notes = ?, updated_at = datetime('now','localtime') WHERE id = ? AND location_id = ?",
-                        (e_name.value, e_phone.value, e_email.value, e_notes.value, customer_id, loc_id),
+                        "UPDATE customers SET full_name = ?, phone = ?, birth_date = ?, notes = ?, updated_at = datetime('now','localtime') WHERE id = ? AND location_id = ?",
+                        (e_name.value, e_phone.value, parsed_bd, e_notes.value, customer_id, loc_id),
                     )
                     conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
@@ -364,7 +457,21 @@ def render():
             e_code.value = row.get("code", "")
             e_name.value = row.get("full_name", "")
             e_phone.value = row.get("phone", "")
-            e_email.value = row.get("email", "")
+            # Convert from display format back, or from DB value
+            bd = row.get("birth_date", "")
+            if bd:
+                # Try DD/MM/YYYY first, then YYYY-MM-DD
+                try:
+                    dt = datetime.strptime(bd, "%d/%m/%Y")
+                    e_birth_date.value = dt.strftime("%d/%m/%Y")
+                except ValueError:
+                    try:
+                        dt = datetime.strptime(bd, "%Y-%m-%d")
+                        e_birth_date.value = dt.strftime("%d/%m/%Y")
+                    except ValueError:
+                        e_birth_date.value = bd
+            else:
+                e_birth_date.value = ""
             e_notes.value = row.get("notes", "")
             edit_err.set_text("")
             edit_dialog.open()
