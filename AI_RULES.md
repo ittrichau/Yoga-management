@@ -1,15 +1,20 @@
-"# AI Rules
+---
+name: AI Rules
+alwaysApply: true
+---
+
+# AI Rules
 
 ## Goal
 
-Build a Gym Nutrition Management System optimized for AI-assisted development.
+Build a Yoga/Gym Management System optimized for AI-assisted development.
 
 ## Tech Stack
 
 - Python 3.13+
 - FastAPI
 - NiceGUI
-- SQLite
+- SQLite / PostgreSQL
 - bcrypt (thay thế passlib)
 - PyJWT
 
@@ -42,9 +47,12 @@ Use business domains instead.
 Example:
 
 - customer.py
+- drink.py
+- ingredient.py
 - product.py
-- inventory.py
-- nutrition.py
+- transaction.py
+- package.py
+- audit.py
 
 ## File Size Rules
 
@@ -60,9 +68,8 @@ For every task:
 2. Files To Modify
 3. Changes Made
 4. Next Suggested Task
-   "
 
-# Terminal Rules
+## Terminal Rules
 
 - Never run long-lived commands.
 - Never execute uvicorn.

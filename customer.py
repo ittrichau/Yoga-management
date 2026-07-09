@@ -295,6 +295,44 @@ def render():
             except ValueError:
                 return bd
 
+        def _create_birth_date_picker(label: str):
+            """Create a Vietnamese date picker displaying DD/MM/YYYY but storing YYYY-MM-DD."""
+            date_input = ui.input(label).props("outlined dense readonly").classes("w-full mb-2 cursor-pointer")
+            with date_input.add_slot("append"):
+                ui.icon("event").classes("cursor-pointer")
+            with ui.menu().props("no-parent-event") as menu:
+                date_picker = ui.date(mask="YYYY-MM-DD").props("minimal")
+                with ui.row().classes("justify-end w-full p-2"):
+                    ui.button("Xóa", on_click=lambda: (setattr(date_input, "value", ""), setattr(date_picker, "value", None), menu.close())).props("flat")
+                    ui.button("Chọn", on_click=menu.close).props("flat")
+            date_input.on("click", menu.open)
+
+            def sync_date(e):
+                if e.value:
+                    date_input.value = _fmt_birth_date(e.value)
+
+            date_picker.on_value_change(sync_date)
+            date_input.date_picker = date_picker
+            return date_input
+
+        def _set_birth_date_picker_value(date_input, raw_value: str | None):
+            """Set date picker value from either DD/MM/YYYY or YYYY-MM-DD."""
+            raw_value = (raw_value or "").strip()
+            if not raw_value:
+                date_input.value = ""
+                date_input.date_picker.value = None
+                return
+            for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+                try:
+                    db_value = datetime.strptime(raw_value, fmt).strftime("%Y-%m-%d")
+                    date_input.value = _fmt_birth_date(db_value)
+                    date_input.date_picker.value = db_value
+                    return
+                except ValueError:
+                    pass
+            date_input.value = raw_value
+            date_input.date_picker.value = None
+
         def refresh_customers():
             with get_db() as conn:
                 search = search_input.value
@@ -323,7 +361,7 @@ def render():
             ui.label(f"Khách hàng sẽ thuộc: {location_name}").classes("text-sm text-gray-500 mb-3")
             name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
-            birth_date = ui.input("Ngày sinh (DD/MM/YYYY)").props("outlined dense mask='##/##/####'").classes("w-full mb-2")
+            birth_date = _create_birth_date_picker("Ngày sinh")
             notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             err = ui.label().classes("text-red-500 text-sm")
 
@@ -386,7 +424,7 @@ def render():
 
                 name.value = ""
                 phone.value = ""
-                birth_date.value = ""
+                _set_birth_date_picker_value(birth_date, "")
                 notes.value = ""
                 create_dialog.close()
                 refresh_customers()
@@ -406,7 +444,7 @@ def render():
             e_code = ui.input("Mã KH (không thể sửa)").props("outlined dense readonly").classes("w-full mb-2")
             e_name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             e_phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
-            e_birth_date = ui.input("Ngày sinh (DD/MM/YYYY)").props("outlined dense mask='##/##/####'").classes("w-full mb-2")
+            e_birth_date = _create_birth_date_picker("Ngày sinh")
             e_notes = ui.textarea("Ghi chú").props("outlined dense").classes("w-full mb-4")
             edit_err = ui.label().classes("text-red-500 text-sm")
 
@@ -457,21 +495,7 @@ def render():
             e_code.value = row.get("code", "")
             e_name.value = row.get("full_name", "")
             e_phone.value = row.get("phone", "")
-            # Convert from display format back, or from DB value
-            bd = row.get("birth_date", "")
-            if bd:
-                # Try DD/MM/YYYY first, then YYYY-MM-DD
-                try:
-                    dt = datetime.strptime(bd, "%d/%m/%Y")
-                    e_birth_date.value = dt.strftime("%d/%m/%Y")
-                except ValueError:
-                    try:
-                        dt = datetime.strptime(bd, "%Y-%m-%d")
-                        e_birth_date.value = dt.strftime("%d/%m/%Y")
-                    except ValueError:
-                        e_birth_date.value = bd
-            else:
-                e_birth_date.value = ""
+            _set_birth_date_picker_value(e_birth_date, row.get("birth_date", ""))
             e_notes.value = row.get("notes", "")
             edit_err.set_text("")
             edit_dialog.open()

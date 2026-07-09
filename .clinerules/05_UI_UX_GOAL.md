@@ -1,3 +1,8 @@
+---
+name: UI UX Goal
+alwaysApply: true
+---
+
 # UI/UX Goal
 
 ## Product Vision
@@ -158,9 +163,12 @@ Các mục nên có:
   Quản lý đồ uống, giá mỗi serving, trạng thái hoạt động và công thức nguyên liệu.
 
 - **Nguyên liệu** (`/ingredients`)  
-  Quản lý nguyên liệu, đơn vị (`muỗng`, `nắp`, `gói`), tồn kho hiện tại, tồn kho tối thiểu và điều chỉnh tồn kho.  
-  Thêm/sửa nguyên liệu dành cho **MANAGER** và **OWNER**.  
-  Điều chỉnh tồn kho chỉ dành cho **OWNER**.
+   Quản lý nguyên liệu, đơn vị (`muỗng`, `nắp`, `gói`), tồn kho hiện tại, tồn kho tối thiểu và điều chỉnh tồn kho.  
+   Thêm/sửa nguyên liệu dành cho **MANAGER** và **OWNER**.  
+   Điều chỉnh tồn kho chỉ dành cho **OWNER**.
+
+- **Sản phẩm** (`/products`)  
+   Quản lý sản phẩm bán lẻ (thảm, áo, phụ kiện), giá bán, khuyến mãi, tồn kho và điều chỉnh tồn kho.
 
 #### Nhóm quản lý gói
 
@@ -289,6 +297,7 @@ Các trang quản lý dữ liệu quan trọng hơn dashboard.
 - PT
 - Đồ uống
 - Nguyên liệu
+- Sản phẩm
 - Mẫu gói
 - Audit Log
 - Người dùng
@@ -334,6 +343,7 @@ Forms cần sạch sẽ, có tổ chức và giảm thao tác thừa.
 - Tạo/sửa khách hàng
 - Tạo/sửa đồ uống
 - Tạo/sửa nguyên liệu
+- Tạo/sửa sản phẩm
 - Điều chỉnh tồn kho
 - Tạo gói trả trước
 - Tạo mẫu gói

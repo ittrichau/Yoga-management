@@ -1,3 +1,8 @@
+---
+name: Railway Deploy
+alwaysApply: true
+---
+
 # Deploy lên Railway
 
 ## Tổng quan
@@ -119,19 +124,13 @@ Sau khi deploy production, nên đổi mật khẩu hoặc vô hiệu hóa user 
 
 ### Static files
 
-Source hiện tại có dùng `/static/style.css` qua `app.add_static_files("/static", static_dir)`, nhưng Dockerfile hiện tại đang dùng:
-
-```dockerfile
-COPY *.py .
-```
-
-Dòng này chỉ copy file `.py`, không copy thư mục `static/`.
-
-Nếu deploy lên Railway mà UI mất CSS, cần cập nhật Dockerfile để copy thêm static:
+Source hiện tại có dùng `/static/style.css` qua `app.add_static_files("/static", static_dir)`. Dockerfile đã có lệnh copy static:
 
 ```dockerfile
 COPY static ./static
 ```
+
+Nếu deploy lên Railway mà UI mất CSS, kiểm tra Dockerfile đã có dòng trên chưa.
 
 ### Production
 
