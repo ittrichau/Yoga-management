@@ -185,7 +185,7 @@ def render():
         ).classes("w-full")
 
         # Create dialog
-        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 relative"):
+        with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
             with ui.element("div").classes("absolute top-2 right-2"):
                 ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
             ui.label("Thêm nguyên liệu").classes("text-xl font-bold mb-4 pr-8")
@@ -221,7 +221,7 @@ def render():
                 ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary")
 
         # Edit dialog
-        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96 relative"):
+        with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
             with ui.element("div").classes("absolute top-2 right-2"):
                 ui.button(icon="close", on_click=edit_dialog.close).props("flat round dense").tooltip("Đóng")
             ui.label("Sửa nguyên liệu").classes("text-xl font-bold mb-4 pr-8")
@@ -255,7 +255,7 @@ def render():
                 ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary")
 
         # Adjust stock dialog (OWNER only)
-        with ui.dialog() as adjust_dialog, ui.card().classes("p-6 w-96 relative"):
+        with ui.dialog() as adjust_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
             with ui.element("div").classes("absolute top-2 right-2"):
                 ui.button(icon="close", on_click=adjust_dialog.close).props("flat round dense").tooltip("Đóng")
             ui.label("Điều chỉnh tồn kho").classes("text-xl font-bold mb-4 pr-8")

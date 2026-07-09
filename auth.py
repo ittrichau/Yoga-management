@@ -504,7 +504,7 @@ def render_location_dialog():
 
 
 def render_navbar():
-    """Shared responsive navbar with location switcher."""
+    """Shared responsive navbar with location switcher + mobile bottom bar."""
     load_styles()
 
     role = app.storage.user.get("role", "STAFF")
@@ -525,12 +525,17 @@ def render_navbar():
         else "Cơ sở làm việc hiện tại"
     )
 
+    # ═══ TOP HEADER (desktop: full; mobile: brand + menu + logout) ═══
     with ui.header().props("elevated").classes("items-center justify-between"):
-        with ui.row().classes("items-center gap-2"):
-            ui.label("🧘").classes("text-xl md:text-2xl")
-            ui.label("Yoga Management").classes("text-base md:text-lg font-bold")
+        with ui.row().classes("items-center gap-1 md:gap-3"):
+            # Mobile brand (compact)
+            ui.label("🧘").classes("text-xl")
+            ui.label("YM").classes("text-base font-bold md:hidden")
+            # Desktop brand
+            ui.label("Yoga Management").classes("hidden md:block text-lg font-bold")
 
         with ui.row().classes("items-center gap-1 md:gap-2"):
+            # Location badge (hidden on very small screens, visible sm+)
             badge = ui.element("div").classes(badge_classes + " hidden sm:inline-flex")
             if has_multiple_locs:
                 badge.on("click", loc_dialog.open)
@@ -541,8 +546,10 @@ def render_navbar():
                 if has_multiple_locs:
                     ui.label("⇄").classes("badge-swap-icon text-xs")
 
+            # Username (desktop only)
             ui.label(f"👤 {username}").classes("hidden lg:block text-xs text-gray-600")
 
+            # Desktop quick actions
             with ui.row().classes("hidden md:flex items-center gap-1"):
                 ui.button("Bán hàng", icon="point_of_sale", on_click=lambda: ui.navigate.to("/sales")).props(
                     "flat dense"
@@ -554,6 +561,7 @@ def render_navbar():
                     "flat dense"
                 )
 
+            # Hamburger menu (all screens)
             with ui.button(icon="menu").props("flat round dense"):
                 with ui.menu().classes("mt-2"):
                     menu_items = [
@@ -591,7 +599,28 @@ def render_navbar():
                     ui.menu_item("📍 Đổi cơ sở", on_click=loc_dialog.open)
                     ui.menu_item("🚪 Đăng xuất", on_click=logout)
 
-            ui.button(icon="logout", on_click=logout).props("flat round dense").tooltip("Đăng xuất")
+            # Desktop logout
+            ui.button(icon="logout", on_click=logout).props("flat round dense").tooltip("Đăng xuất").classes("hidden md:inline-flex")
+
+    # ═══ MOBILE BOTTOM NAVIGATION BAR ═══
+    with ui.footer().classes("md:hidden").props("bordered").style("background: white !important"):
+        with ui.row().classes("w-full justify-around items-center py-1"):
+            _mb_btn("📊", "Tổng quan", "/dashboard")
+            _mb_btn("💰", "Bán hàng", "/sales")
+            _mb_btn("🟡", "Check-in", "/checkin")
+            _mb_btn("👥", "Khách", "/customers")
+            _mb_btn("☰", "Menu", None, loc_dialog.open)
+
+
+def _mb_btn(icon: str, label: str, path: str | None, on_click=None):
+    """Render a mobile bottom-nav button."""
+    if path:
+        btn = ui.button(icon=icon, on_click=lambda p=path: ui.navigate.to(p))
+    else:
+        btn = ui.button(icon=icon, on_click=on_click)
+    btn.props("flat dense padding-none").classes("mobile-nav-btn flex flex-col items-center gap-0")
+    with btn:
+        ui.label(label).classes("text-[10px] leading-none mt-1")
 
 
 # ==================== Login & Location Pages ====================

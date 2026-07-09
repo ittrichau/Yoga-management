@@ -290,7 +290,7 @@ def render():
             ui.label(f"Bảng điều khiển - {loc_name}")
 
         # Stats Grid
-        with ui.element("div").classes("revenue-row"):
+        with ui.element("div").classes("dashboard-stat-grid"):
             with ui.element("div").classes("stat-card border-primary"):
                 with ui.row().classes("items-center gap-3"):
                     ui.icon("people", size="2.5rem").classes("text-primary")

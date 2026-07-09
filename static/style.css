@@ -175,7 +175,20 @@ header.q-header .text-white\/80 {
 }
 
 /* ── Tables ────────────────────────────────────────────────────── */
+.q-table__container {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+.q-table__middle {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
 .q-table {
+    min-width: 680px;
     background: rgba(255, 255, 255, 0.98) !important;
     border-radius: var(--radius) !important;
     box-shadow: var(--shadow) !important;
@@ -206,13 +219,30 @@ header.q-header .text-white\/80 {
 
 /* Mobile table adjustments */
 @media (max-width: 640px) {
+    .q-table__container {
+        border-radius: var(--radius) !important;
+    }
+
+    .q-table {
+        min-width: 620px;
+    }
+
     .q-table thead tr:first-child th {
         font-size: 0.7rem !important;
         padding: 0.5rem 0.5rem !important;
+        white-space: nowrap;
     }
+
     .q-table tbody td {
         font-size: 0.8rem !important;
         padding: 0.5rem 0.5rem !important;
+        white-space: nowrap;
+    }
+
+    .q-table__bottom {
+        font-size: 0.78rem !important;
+        padding: 0.5rem !important;
+        gap: 0.35rem !important;
     }
 }
 
@@ -490,15 +520,41 @@ header.q-header .text-white\/80 {
     }
 }
 
-/* ── Revenue Summary Row ───────────────────────────────────────── */
-.revenue-row {
+/* ── Dashboard / Revenue Summary Grid ──────────────────────────── */
+.revenue-row,
+.dashboard-stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 1rem;
 }
+
+.dashboard-stat-grid .stat-card {
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .dashboard-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 640px) {
-    .revenue-row {
-        grid-template-columns: 1fr 1fr;
+    .revenue-row,
+    .dashboard-stat-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .stat-card {
+        padding: 1rem;
+    }
+
+    .stat-card .stat-value {
+        font-size: 1.45rem;
+    }
+
+    .stat-card .stat-label {
+        font-size: 0.78rem;
     }
 }
 
@@ -551,6 +607,16 @@ header.q-header .text-white\/80 {
         min-width: 34px !important;
     }
 
+    .custom-card,
+    .toolbar-card {
+        padding: 0.85rem !important;
+    }
+
+    .section-header {
+        font-size: 1rem;
+        margin: 0.9rem 0 0.65rem 0;
+    }
+
     .search-bar {
         align-items: stretch;
     }
@@ -558,6 +624,26 @@ header.q-header .text-white\/80 {
     .search-bar .q-field,
     .search-bar .q-btn {
         width: 100%;
+    }
+
+    .q-field {
+        max-width: 100% !important;
+    }
+
+    .q-dialog .q-card {
+        width: calc(100vw - 1rem) !important;
+        max-width: calc(100vw - 1rem) !important;
+    }
+
+    .q-card__actions,
+    .q-dialog .q-card > .q-card__actions {
+        flex-wrap: wrap !important;
+        gap: 0.5rem !important;
+    }
+
+    .q-card__actions .q-btn,
+    .q-dialog .q-card .q-btn {
+        min-height: 38px !important;
     }
 }
 
@@ -648,5 +734,62 @@ header.q-header .text-white\/80 {
 
     .action-buttons {
         gap: 0.1rem;
+    }
+}
+
+/* ── Mobile Bottom Navigation Bar ──────────────────────────────── */
+.mobile-nav-btn {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 4px 8px !important;
+    border-radius: var(--radius-sm) !important;
+    flex: 0 0 auto;
+}
+
+.mobile-nav-btn .q-btn__content {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 0 !important;
+    padding: 2px !important;
+}
+
+/* Active state for bottom nav (apply on current page) */
+.mobile-nav-btn.active-nav {
+    background: var(--primary-bg) !important;
+    color: var(--primary-dark) !important;
+}
+
+/* Footer spacer for mobile (so content doesn't hide behind bottom bar) */
+@media (max-width: 767px) {
+    .page-container {
+        padding-bottom: 5rem !important;
+    }
+    
+    /* Make dialogs full-width on mobile */
+    .q-dialog .q-card {
+        margin: 0.5rem !important;
+        border-radius: var(--radius) !important;
+    }
+    
+    /* Adjust toolbar buttons to stack on mobile */
+    .admin-toolbar {
+        flex-direction: column !important;
+    }
+    
+    .admin-toolbar .q-btn {
+        flex: 1;
+    }
+    
+    /* Footer height */
+    .q-footer {
+        min-height: 56px;
+    }
+}
+
+@media (max-width: 374px) {
+    /* Very small phones: smaller bottom nav */
+    .mobile-nav-btn {
+        padding: 2px 4px !important;
+        font-size: 0.7rem !important;
     }
 }
