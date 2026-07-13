@@ -525,6 +525,68 @@ def render_navbar():
         else "Cơ sở làm việc hiện tại"
     )
 
+    menu_drawer = ui.left_drawer(fixed=True, value=False).classes("app-drawer")
+    with menu_drawer:
+        with ui.column().classes("w-full gap-1 p-3"):
+            ui.label("Yoga Management").classes("text-lg font-bold px-2 py-2")
+            ui.label(f"📍 {loc_name}").classes("location-badge active w-full justify-center mb-2")
+            ui.separator()
+
+            ui.label("Vận hành").classes("drawer-section-label")
+            menu_items = [
+                ("dashboard", "Bảng điều khiển", "/dashboard"),
+                ("groups", "Khách hàng", "/customers"),
+                ("check_circle", "Check-in", "/checkin"),
+                ("point_of_sale", "Bán hàng", "/sales"),
+                ("shopping_cart", "Gói trả trước", "/packages"),
+                ("fitness_center", "PT", "/pt"),
+            ]
+            for icon, label, path in menu_items:
+                ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props(
+                    "flat no-caps align=left"
+                ).classes("drawer-nav-btn w-full")
+
+            ui.separator()
+            ui.label("Sản phẩm & tồn kho").classes("drawer-section-label")
+            for icon, label, path in [
+                ("local_cafe", "Đồ uống", "/drinks"),
+                ("science", "Nguyên liệu", "/ingredients"),
+                ("inventory_2", "Sản phẩm", "/products"),
+            ]:
+                ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props(
+                    "flat no-caps align=left"
+                ).classes("drawer-nav-btn w-full")
+
+            if role in ("MANAGER", "OWNER"):
+                ui.separator()
+                ui.label("Quản lý").classes("drawer-section-label")
+                for icon, label, path in [
+                    ("history", "Nhật ký", "/audit"),
+                    ("list_alt", "Mẫu gói", "/package-templates"),
+                    ("upgrade", "Nâng cấp gói", "/packages/upgrade"),
+                ]:
+                    ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props(
+                        "flat no-caps align=left"
+                    ).classes("drawer-nav-btn w-full")
+
+            if role == "OWNER":
+                ui.separator()
+                ui.label("Quản trị").classes("drawer-section-label")
+                ui.button("Người dùng", icon="manage_accounts", on_click=lambda: ui.navigate.to("/users")).props(
+                    "flat no-caps align=left"
+                ).classes("drawer-nav-btn w-full")
+                ui.button("Cơ sở", icon="business", on_click=lambda: ui.navigate.to("/locations")).props(
+                    "flat no-caps align=left"
+                ).classes("drawer-nav-btn w-full")
+
+            ui.separator()
+            ui.button("Đổi cơ sở", icon="place", on_click=loc_dialog.open).props("flat no-caps align=left").classes(
+                "drawer-nav-btn w-full"
+            )
+            ui.button("Đăng xuất", icon="logout", on_click=logout).props("flat no-caps align=left").classes(
+                "drawer-nav-btn w-full text-red-600"
+            )
+
     # ═══ TOP HEADER (desktop: full; mobile: brand + menu + logout) ═══
     with ui.header(fixed=True).props("elevated").classes("app-header items-center justify-between"):
         with ui.row().classes("items-center gap-1 md:gap-3"):
@@ -560,54 +622,6 @@ def render_navbar():
                 ui.button("Khách hàng", icon="groups", on_click=lambda: ui.navigate.to("/customers")).props(
                     "flat dense"
                 )
-
-            menu_drawer = ui.left_drawer(fixed=True, value=False).classes("app-drawer")
-            with menu_drawer:
-                with ui.column().classes("w-full gap-1 p-3"):
-                    ui.label("Yoga Management").classes("text-lg font-bold px-2 py-2")
-                    ui.label(f"📍 {loc_name}").classes("location-badge active w-full justify-center mb-2")
-                    ui.separator()
-
-                    ui.label("Vận hành").classes("drawer-section-label")
-                    menu_items = [
-                        ("dashboard", "Bảng điều khiển", "/dashboard"),
-                        ("groups", "Khách hàng", "/customers"),
-                        ("check_circle", "Check-in", "/checkin"),
-                        ("point_of_sale", "Bán hàng", "/sales"),
-                        ("shopping_cart", "Gói trả trước", "/packages"),
-                        ("fitness_center", "PT", "/pt"),
-                    ]
-                    for icon, label, path in menu_items:
-                        ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
-
-                    ui.separator()
-                    ui.label("Sản phẩm & tồn kho").classes("drawer-section-label")
-                    for icon, label, path in [
-                        ("local_cafe", "Đồ uống", "/drinks"),
-                        ("science", "Nguyên liệu", "/ingredients"),
-                        ("inventory_2", "Sản phẩm", "/products"),
-                    ]:
-                        ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
-
-                    if role in ("MANAGER", "OWNER"):
-                        ui.separator()
-                        ui.label("Quản lý").classes("drawer-section-label")
-                        for icon, label, path in [
-                            ("history", "Nhật ký", "/audit"),
-                            ("list_alt", "Mẫu gói", "/package-templates"),
-                            ("upgrade", "Nâng cấp gói", "/packages/upgrade"),
-                        ]:
-                            ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
-
-                    if role == "OWNER":
-                        ui.separator()
-                        ui.label("Quản trị").classes("drawer-section-label")
-                        ui.button("Người dùng", icon="manage_accounts", on_click=lambda: ui.navigate.to("/users")).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
-                        ui.button("Cơ sở", icon="business", on_click=lambda: ui.navigate.to("/locations")).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
-
-                    ui.separator()
-                    ui.button("Đổi cơ sở", icon="place", on_click=loc_dialog.open).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
-                    ui.button("Đăng xuất", icon="logout", on_click=logout).props("flat no-caps align=left").classes("drawer-nav-btn w-full text-red-600")
 
             # Drawer menu trigger
             ui.button(icon="menu", on_click=menu_drawer.toggle).props("flat round dense").classes("touch-target").tooltip("Menu")
