@@ -586,7 +586,7 @@ def render():
                 summary_table.rows = [
                     {
                         "user_id": r["user_id"] or 0,
-                        "user": r["user_full_name"] or r["username"] or "Hệ thống",
+                        "user": r["full_name"] or r["username"] or "Hệ thống",
                         "total": r["total"],
                         "creates": r["creates"] or 0,
                         "updates": r["updates"] or 0,

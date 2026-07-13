@@ -164,6 +164,8 @@ def _init_pg_schema(db):
         location_id INTEGER NOT NULL REFERENCES locations(id),
         name VARCHAR(255) NOT NULL,
         price_per_serving REAL NOT NULL DEFAULT 0,
+        description TEXT DEFAULT '',
+        recipe TEXT DEFAULT '',
         is_active INTEGER NOT NULL DEFAULT 1,
         created_by INTEGER REFERENCES users(id),
         created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
@@ -382,6 +384,8 @@ def _init_sqlite_schema(db):
         location_id INTEGER NOT NULL REFERENCES locations(id),
         name TEXT NOT NULL,
         price_per_serving REAL NOT NULL DEFAULT 0,
+        description TEXT DEFAULT '',
+        recipe TEXT DEFAULT '',
         is_active INTEGER NOT NULL DEFAULT 1,
         created_by INTEGER REFERENCES users(id),
         created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
@@ -779,6 +783,22 @@ def migrate_schema():
             db.execute("ALTER TABLE package_items ADD COLUMN IF NOT EXISTS product_id INTEGER REFERENCES products(id)")
             db.execute("ALTER TABLE package_items ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 0")
             db.execute("ALTER TABLE customers ADD COLUMN IF NOT EXISTS birth_date TEXT")
+            db.execute("ALTER TABLE drinks ADD COLUMN IF NOT EXISTS price_per_serving REAL DEFAULT 0")
+            db.execute("ALTER TABLE drinks ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''")
+            db.execute("ALTER TABLE drinks ADD COLUMN IF NOT EXISTS recipe TEXT DEFAULT ''")
+            db.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'drinks' AND column_name = 'price'
+                    ) THEN
+                        UPDATE drinks
+                        SET price_per_serving = price
+                        WHERE COALESCE(price_per_serving, 0) = 0 AND price IS NOT NULL;
+                    END IF;
+                END $$;
+            """)
         else:
             def _has_col(table, col):
                 rows = db.execute(f"PRAGMA table_info({table})").fetchall()
@@ -810,6 +830,14 @@ def migrate_schema():
                 db.execute("ALTER TABLE package_items ADD COLUMN product_id INTEGER REFERENCES products(id)")
             if not _has_col("package_items", "quantity"):
                 db.execute("ALTER TABLE package_items ADD COLUMN quantity INTEGER DEFAULT 0")
+            if not _has_col("drinks", "price_per_serving"):
+                db.execute("ALTER TABLE drinks ADD COLUMN price_per_serving REAL DEFAULT 0")
+                if _has_col("drinks", "price"):
+                    db.execute("UPDATE drinks SET price_per_serving = price WHERE COALESCE(price_per_serving, 0) = 0 AND price IS NOT NULL")
+            if not _has_col("drinks", "description"):
+                db.execute("ALTER TABLE drinks ADD COLUMN description TEXT DEFAULT ''")
+            if not _has_col("drinks", "recipe"):
+                db.execute("ALTER TABLE drinks ADD COLUMN recipe TEXT DEFAULT ''")
             # Backfill location_id for legacy single-location databases
             db.execute("INSERT OR IGNORE INTO locations (id, name) VALUES (1, 'Cơ sở mặc định')")
             if not _has_col("customers", "location_id"):

@@ -1,25 +1,37 @@
 ---
-name: AI Rules
+name: AI Rules Bridge
 alwaysApply: true
 ---
 
-# AI Rules
+# AI Rules Bridge
 
-Rule trung tâm của project nằm tại:
+`AI_RULES.md` là rule trung tâm của project và phải được ưu tiên khi có mâu thuẫn.
+
+## Khi làm task code
+
+Đọc và tuân thủ:
 
 - `AI_RULES.md`
+- `.clinerules/01_GOAL.md`
+- `.clinerules/02_PROJECT_CONTEXT.md`
+- `.clinerules/03_ARCHITECTURE.md`
+- `.clinerules/07_CURRENT_TASK.md`
 
-Khi làm task trong project này, hãy đọc và tuân thủ toàn bộ nội dung trong `AI_RULES.md`.
+## Khi làm task UI/UX
 
-Ngoài ra hãy đọc các file context/rule cùng bộ nếu cần:
+Đọc thêm:
 
-- `01_GOAL.md`
-- `02_PROJECT_CONTEXT.md`
-- `03_ARCHITECTURE.md`
-- `05_UI_UX_GOAL.md`
-- `06_RAILWAY_DEPLOY.md`
-- `07_CURRENT_TASK.md`
+- `.clinerules/05_UI_UX_GOAL.md`
 
-Không tự ý tạo controller/service/repository/dto không cần thiết.
-Không refactor ngoài phạm vi task.
-Ưu tiên sửa trực tiếp trong các file domain hiện tại.
+## Khi làm task deploy/env
+
+Đọc thêm:
+
+- `.clinerules/06_RAILWAY_DEPLOY.md`
+
+## Rule quan trọng
+
+- Không tạo controller/service/repository/dto không cần thiết.
+- Không refactor ngoài phạm vi task.
+- Ưu tiên sửa trực tiếp trong file domain hiện tại.
+- Sau mỗi implementation task, cập nhật `.clinerules/07_CURRENT_TASK.md`.

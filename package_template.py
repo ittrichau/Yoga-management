@@ -226,7 +226,7 @@ def render():
         t_error.set_text("")
 
     # Create dialog
-    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-[32rem] max-w-full relative"):
+    with ui.dialog() as create_dialog, ui.card().classes("responsive-dialog-card"):
         with ui.element("div").classes("absolute top-2 right-2"):
             ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
         ui.label("📦 Tạo mẫu gói mới").classes("section-header mt-0 pr-8")
@@ -284,7 +284,7 @@ def render():
             ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary")
 
     # Edit dialog
-    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-[32rem] max-w-full relative"):
+    with ui.dialog() as edit_dialog, ui.card().classes("responsive-dialog-card"):
         with ui.element("div").classes("absolute top-2 right-2"):
             ui.button(icon="close", on_click=edit_dialog.close).props("flat round dense").tooltip("Đóng")
         ui.label("✏️ Sửa mẫu gói").classes("section-header mt-0 pr-8")

@@ -45,8 +45,11 @@ body {
         linear-gradient(180deg, #FFFFFF 0%, var(--gray-100) 100%) !important;
     color: var(--gray-800);
     font-family: 'Inter', 'Geist', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
 }
 
 .q-page, .nicegui-content {
@@ -55,24 +58,31 @@ body {
 
 /* ── Page Container ────────────────────────────────────────────── */
 .page-container {
+    width: 100%;
     max-width: 1320px;
     margin: 0 auto;
-    padding: 1.5rem;
+    padding: 0.875rem;
+    padding-top: 4.75rem;
+    box-sizing: border-box;
 }
 
-@media (max-width: 640px) {
+@media (min-width: 768px) {
     .page-container {
-        padding: 0.75rem;
+        padding: 1.5rem;
+        padding-top: 5rem;
     }
 }
 
 /* ── Navbar (Overrides NiceGUI header) ─────────────────────────── */
-header.q-header {
+header.q-header,
+.app-header {
     background: rgba(255, 255, 255, 0.94) !important;
     color: var(--gray-800) !important;
     border-bottom: 1px solid rgba(229, 231, 235, 0.9) !important;
     box-shadow: var(--shadow-sm) !important;
     backdrop-filter: blur(12px);
+    min-height: 56px !important;
+    z-index: 2000 !important;
 }
 header.q-header .q-btn,
 header.q-header .q-icon,
@@ -188,7 +198,7 @@ header.q-header .text-white\/80 {
 }
 
 .q-table {
-    min-width: 680px;
+    min-width: 620px;
     background: rgba(255, 255, 255, 0.98) !important;
     border-radius: var(--radius) !important;
     box-shadow: var(--shadow) !important;
@@ -265,6 +275,7 @@ header.q-header .text-white\/80 {
     font-weight: 600 !important;
     text-transform: none !important;
     letter-spacing: 0.01em !important;
+    min-height: 44px;
     transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
 }
 .q-btn:not(.q-btn--flat):hover {
@@ -314,6 +325,21 @@ header.q-header .text-white\/80 {
 .q-dialog .q-card {
     border-radius: var(--radius-lg) !important;
     box-shadow: var(--shadow-xl) !important;
+    width: min(95vw, 42rem);
+    max-width: 95vw !important;
+}
+
+.responsive-dialog-card {
+    width: min(95vw, 42rem) !important;
+    max-width: 95vw !important;
+    padding: 1rem !important;
+    position: relative;
+}
+
+@media (min-width: 768px) {
+    .responsive-dialog-card {
+        padding: 1.5rem !important;
+    }
 }
 
 /* ── Page Title ────────────────────────────────────────────────── */
@@ -419,12 +445,88 @@ header.q-header .text-white\/80 {
 }
 
 /* ── Search Bar ────────────────────────────────────────────────── */
-.search-bar {
+.search-bar,
+.responsive-row,
+.responsive-actions {
     display: flex;
-    gap: 0.5rem;
-    align-items: end;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+    width: 100%;
     margin-bottom: 1rem;
+}
+
+.search-bar .q-field,
+.search-bar .q-btn,
+.responsive-row .q-field,
+.responsive-row .q-btn,
+.responsive-actions .q-btn {
+    width: 100%;
+}
+
+.responsive-card {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1rem;
+}
+
+.touch-target {
+    min-width: 44px !important;
+    min-height: 44px !important;
+}
+
+.drawer-section-label {
+    color: var(--gray-500);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.75rem 0.5rem 0.25rem;
+}
+
+.drawer-nav-btn {
+    justify-content: flex-start !important;
+    min-height: 44px !important;
+    color: var(--gray-700) !important;
+}
+
+.drawer-nav-btn .q-btn__content {
+    justify-content: flex-start !important;
+    gap: 0.75rem;
+}
+
+.app-drawer {
+    background: rgba(255, 255, 255, 0.98) !important;
+    border-right: 1px solid var(--gray-200);
+}
+
+@media (min-width: 768px) {
+    .search-bar,
+    .responsive-row,
+    .responsive-actions {
+        flex-direction: row;
+        align-items: end;
+        gap: 0.75rem;
+    }
+
+    .search-bar .q-field,
+    .responsive-row .q-field {
+        flex: 1 1 16rem;
+        width: auto;
+    }
+
+    .search-bar .q-btn,
+    .responsive-row .q-btn,
+    .responsive-actions .q-btn {
+        width: auto;
+    }
+
+    .responsive-actions {
+        justify-content: flex-end;
+    }
 }
 
 /* ── Scrollbar Styling ─────────────────────────────────────────── */
@@ -603,8 +705,8 @@ header.q-header .text-white\/80 {
 
 @media (max-width: 640px) {
     .q-header .q-btn {
-        min-height: 34px !important;
-        min-width: 34px !important;
+        min-height: 44px !important;
+        min-width: 44px !important;
     }
 
     .custom-card,
@@ -643,7 +745,7 @@ header.q-header .text-white\/80 {
 
     .q-card__actions .q-btn,
     .q-dialog .q-card .q-btn {
-        min-height: 38px !important;
+        min-height: 44px !important;
     }
 }
 
@@ -762,7 +864,7 @@ header.q-header .text-white\/80 {
 /* Footer spacer for mobile (so content doesn't hide behind bottom bar) */
 @media (max-width: 767px) {
     .page-container {
-        padding-bottom: 5rem !important;
+        padding-bottom: 5.5rem !important;
     }
     
     /* Make dialogs full-width on mobile */

@@ -87,6 +87,24 @@ def update_ingredient(ingredient_id: int, data: IngredientUpdate, user: dict = D
     return {"message": "Nguyên liệu đã được cập nhật"}
 
 
+@router.delete("/{ingredient_id}")
+def soft_delete_ingredient(ingredient_id: int, user: dict = Depends(require_role("OWNER"))):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM ingredients WHERE id = ? AND is_active = 1", (ingredient_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Không tìm thấy nguyên liệu")
+        conn.execute(
+            "UPDATE ingredients SET is_active = 0, updated_at = datetime('now','localtime') WHERE id = ?",
+            (ingredient_id,),
+        )
+        conn.execute(
+            """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+               VALUES (?, ?, 'deactivate', 'ingredient', ?, ?)""",
+            (row["location_id"], user["id"], ingredient_id, f'{{"name":"{row["name"]}"}}'),
+        )
+    return {"message": "Nguyên liệu đã bị vô hiệu hóa"}
+
+
 @router.post("/{ingredient_id}/adjust")
 def adjust_stock(ingredient_id: int, data: StockAdjust, user: dict = Depends(require_role("OWNER"))):
     with get_db() as conn:
@@ -96,17 +114,44 @@ def adjust_stock(ingredient_id: int, data: StockAdjust, user: dict = Depends(req
         new_stock = row["current_stock"] + data.quantity
         if new_stock < 0:
             raise HTTPException(status_code=400, detail="Tồn kho không thể âm")
+        adjustment_type = "add" if data.quantity >= 0 else "remove"
         conn.execute(
             "UPDATE ingredients SET current_stock = ?, updated_at = datetime('now','localtime') WHERE id = ?",
             (new_stock, ingredient_id),
         )
         conn.execute(
+            """INSERT INTO inventory_adjustments (location_id, ingredient_id, adjustment_type, quantity, reason, created_by)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (row["location_id"], ingredient_id, adjustment_type, data.quantity, data.reason, user["id"]),
+        )
+        conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
-               VALUES (?, ?, 'adjust_stock', 'ingredient', ?, ?)""",
-        (row["location_id"], user["id"], ingredient_id,
-         f'{{"name":"{row["name"]}","old":{row["current_stock"]},"adjust":{data.quantity},"new":{new_stock},"reason":"{data.reason}"}}'),
+               VALUES (?, ?, 'inventory_adjust', 'ingredient', ?, ?)""",
+            (
+                row["location_id"],
+                user["id"],
+                ingredient_id,
+                f'{{"name":"{row["name"]}","old":{row["current_stock"]},"adjust":{data.quantity},"new":{new_stock},"reason":"{data.reason}"}}',
+            ),
         )
     return {"message": f"Đã điều chỉnh tồn kho {data.quantity:+.1f}", "new_stock": new_stock}
+
+
+@router.get("/{ingredient_id}/adjustments")
+def list_stock_adjustments(ingredient_id: int, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Không tìm thấy nguyên liệu")
+        rows = conn.execute(
+            """SELECT ia.*, u.username, u.full_name
+               FROM inventory_adjustments ia
+               LEFT JOIN users u ON u.id = ia.created_by
+               WHERE ia.ingredient_id = ?
+               ORDER BY ia.created_at DESC""",
+            (ingredient_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ==================== NiceGUI UI ====================
@@ -201,13 +246,13 @@ def render():
                     return
                 user_id = app.storage.user.get("user_id", 1)
                 with get_db() as conn:
-                                    cur = conn.execute(
-                                        """INSERT INTO ingredients (location_id, name, unit, current_stock, min_stock, created_by)
-                                           VALUES (?, ?, ?, ?, ?, ?)""",
-                                        (loc_id, i_name.value, i_unit.value or "", i_stock.value or 0, i_min.value or 0, user_id),
-                                    )
-                                    ingredient_id = cur.lastrowid
-                                    conn.execute(
+                    cur = conn.execute(
+                        """INSERT INTO ingredients (location_id, name, unit, current_stock, min_stock, created_by)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (loc_id, i_name.value, i_unit.value or "", i_stock.value or 0, i_min.value or 0, user_id),
+                    )
+                    ingredient_id = cur.lastrowid
+                    conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                            VALUES (?, ?, 'create', 'ingredient', ?, ?)""",
                         (loc_id, user_id, ingredient_id, f'{{"name":"{i_name.value}","stock":{i_stock.value or 0}}}'),
@@ -279,15 +324,17 @@ def render():
                         adj_err.set_text("Tồn kho không thể âm")
                         return
                     conn.execute("UPDATE ingredients SET current_stock = ?, updated_at = datetime('now','localtime') WHERE id = ?", (new_stock, ing_id))
+                    adjust_qty = adj_qty.value or 0
+                    adjustment_type = "add" if adjust_qty >= 0 else "remove"
                     conn.execute(
                         """INSERT INTO inventory_adjustments (location_id, ingredient_id, adjustment_type, quantity, reason, created_by)
-                           VALUES (?, ?, 'add', ?, ?, ?)""",
-                        (loc_id, ing_id, adj_qty.value or 0, adj_reason.value or "", user_id),
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (loc_id, ing_id, adjustment_type, adjust_qty, adj_reason.value or "", user_id),
                     )
                     conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
-                           VALUES (?, ?, 'adjust_stock', 'ingredient', ?, ?)""",
-                        (loc_id, user_id, ing_id, f'{{"old":{row["current_stock"]},"adjust":{adj_qty.value or 0},"new":{new_stock},"reason":"{adj_reason.value or ""}"}}'),
+                           VALUES (?, ?, 'inventory_adjust', 'ingredient', ?, ?)""",
+                        (loc_id, user_id, ing_id, f'{{"old":{row["current_stock"]},"adjust":{adjust_qty},"new":{new_stock},"reason":"{adj_reason.value or ""}"}}'),
                     )
                 adjust_dialog.close()
                 refresh()
@@ -336,10 +383,13 @@ def render():
                     <q-btn flat round dense color="warning" icon="tune" @click="$parent.$emit('adjust_ing', props.row)">
                         <q-tooltip>Điều chỉnh kho</q-tooltip>
                     </q-btn>
+                    <q-btn flat round dense color="negative" icon="delete" @click="$parent.$emit('delete_ing', props.row.id)">
+                        <q-tooltip>Vô hiệu hóa</q-tooltip>
+                    </q-btn>
                 </q-td>
                 """,
             )
-        else:
+        elif role == "MANAGER":
             ing_table.add_slot(
                 "body-cell-action",
                 """
@@ -350,7 +400,39 @@ def render():
                 </q-td>
                 """,
             )
+        else:
+            ing_table.add_slot(
+                "body-cell-action",
+                """
+                <q-td :props="props">
+                    <span class="text-gray-400">Chỉ xem</span>
+                </q-td>
+                """,
+            )
+        def soft_delete_ingredient_ui(ingredient_id):
+            try:
+                with get_db() as conn:
+                    row = conn.execute("SELECT * FROM ingredients WHERE id = ? AND is_active = 1", (int(ingredient_id),)).fetchone()
+                    if not row:
+                        ui.notify("Không tìm thấy nguyên liệu", type="warning")
+                        return
+                    conn.execute(
+                        "UPDATE ingredients SET is_active = 0, updated_at = datetime('now','localtime') WHERE id = ?",
+                        (int(ingredient_id),),
+                    )
+                    user_id = app.storage.user.get("user_id", 1)
+                    conn.execute(
+                        """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+                           VALUES (?, ?, 'deactivate', 'ingredient', ?, ?)""",
+                        (loc_id, user_id, int(ingredient_id), f'{{"name":"{row["name"]}"}}'),
+                    )
+                refresh()
+                ui.notify("Đã vô hiệu hóa nguyên liệu", type="positive")
+            except Exception as exc:
+                ui.notify(f"Lỗi: {exc}", type="negative")
+
         ing_table.on("edit_ing", lambda e: open_edit(e.args))
         ing_table.on("adjust_ing", lambda e: open_adjust(e.args))
+        ing_table.on("delete_ing", lambda e: soft_delete_ingredient_ui(e.args))
 
         refresh()

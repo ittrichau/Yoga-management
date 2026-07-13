@@ -526,7 +526,7 @@ def render_navbar():
     )
 
     # ═══ TOP HEADER (desktop: full; mobile: brand + menu + logout) ═══
-    with ui.header().props("elevated").classes("items-center justify-between"):
+    with ui.header(fixed=True).props("elevated").classes("app-header items-center justify-between"):
         with ui.row().classes("items-center gap-1 md:gap-3"):
             # Mobile brand (compact)
             ui.label("🧘").classes("text-xl")
@@ -561,43 +561,56 @@ def render_navbar():
                     "flat dense"
                 )
 
-            # Hamburger menu (all screens)
-            with ui.button(icon="menu").props("flat round dense"):
-                with ui.menu().classes("mt-2"):
+            menu_drawer = ui.left_drawer(fixed=True, value=False).classes("app-drawer")
+            with menu_drawer:
+                with ui.column().classes("w-full gap-1 p-3"):
+                    ui.label("Yoga Management").classes("text-lg font-bold px-2 py-2")
+                    ui.label(f"📍 {loc_name}").classes("location-badge active w-full justify-center mb-2")
+                    ui.separator()
+
+                    ui.label("Vận hành").classes("drawer-section-label")
                     menu_items = [
-                        ("📊 Bảng điều khiển", "/dashboard"),
-                        ("👥 Khách hàng", "/customers"),
-                        ("🟡 Check-in", "/checkin"),
-                        ("📦 Gói trả trước", "/packages"),
-                        ("💪 PT", "/pt"),
+                        ("dashboard", "Bảng điều khiển", "/dashboard"),
+                        ("groups", "Khách hàng", "/customers"),
+                        ("check_circle", "Check-in", "/checkin"),
+                        ("point_of_sale", "Bán hàng", "/sales"),
+                        ("shopping_cart", "Gói trả trước", "/packages"),
+                        ("fitness_center", "PT", "/pt"),
                     ]
-                    for label, path in menu_items:
-                        ui.menu_item(label, on_click=lambda p=path: ui.navigate.to(p))
+                    for icon, label, path in menu_items:
+                        ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
 
                     ui.separator()
-                    for label, path in [("🥤 Đồ uống", "/drinks"), ("🧪 Nguyên liệu", "/ingredients"), ("🧺 Sản phẩm", "/products")]:
-                        ui.menu_item(label, on_click=lambda p=path: ui.navigate.to(p))
-
-                    ui.separator()
-                    ui.menu_item("🔁 Bán hàng", on_click=lambda: ui.navigate.to("/sales"))
+                    ui.label("Sản phẩm & tồn kho").classes("drawer-section-label")
+                    for icon, label, path in [
+                        ("local_cafe", "Đồ uống", "/drinks"),
+                        ("science", "Nguyên liệu", "/ingredients"),
+                        ("inventory_2", "Sản phẩm", "/products"),
+                    ]:
+                        ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
 
                     if role in ("MANAGER", "OWNER"):
                         ui.separator()
-                        for label, path in [
-                            ("📋 Nhật ký", "/audit"),
-                            ("🔧 Mẫu gói", "/package-templates"),
-                            ("⬆️ Nâng cấp gói", "/packages/upgrade"),
+                        ui.label("Quản lý").classes("drawer-section-label")
+                        for icon, label, path in [
+                            ("history", "Nhật ký", "/audit"),
+                            ("list_alt", "Mẫu gói", "/package-templates"),
+                            ("upgrade", "Nâng cấp gói", "/packages/upgrade"),
                         ]:
-                            ui.menu_item(label, on_click=lambda p=path: ui.navigate.to(p))
+                            ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
 
                     if role == "OWNER":
                         ui.separator()
-                        ui.menu_item("👥 Người dùng", on_click=lambda: ui.navigate.to("/users"))
-                        ui.menu_item("🏢 Cơ sở", on_click=lambda: ui.navigate.to("/locations"))
+                        ui.label("Quản trị").classes("drawer-section-label")
+                        ui.button("Người dùng", icon="manage_accounts", on_click=lambda: ui.navigate.to("/users")).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
+                        ui.button("Cơ sở", icon="business", on_click=lambda: ui.navigate.to("/locations")).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
 
                     ui.separator()
-                    ui.menu_item("📍 Đổi cơ sở", on_click=loc_dialog.open)
-                    ui.menu_item("🚪 Đăng xuất", on_click=logout)
+                    ui.button("Đổi cơ sở", icon="place", on_click=loc_dialog.open).props("flat no-caps align=left").classes("drawer-nav-btn w-full")
+                    ui.button("Đăng xuất", icon="logout", on_click=logout).props("flat no-caps align=left").classes("drawer-nav-btn w-full text-red-600")
+
+            # Drawer menu trigger
+            ui.button(icon="menu", on_click=menu_drawer.toggle).props("flat round dense").classes("touch-target").tooltip("Menu")
 
             # Desktop logout
             ui.button(icon="logout", on_click=logout).props("flat round dense").tooltip("Đăng xuất").classes("hidden md:inline-flex")
@@ -749,7 +762,7 @@ def users_page():
         c_locations.value = []
         c_error.set_text("")
 
-    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-[30rem] max-w-full relative"):
+    with ui.dialog() as create_dialog, ui.card().classes("responsive-dialog-card"):
         with ui.element("div").classes("absolute top-2 right-2"):
             ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
         ui.label("👤 Người dùng mới").classes("section-header mt-0 pr-8")
@@ -787,7 +800,7 @@ def users_page():
             ui.button("Đóng", on_click=create_dialog.close, icon="close").props("outlined")
             ui.button("Lưu", on_click=handle_create, icon="save").props("unelevated").classes("btn-primary")
 
-    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-[30rem] max-w-full relative"):
+    with ui.dialog() as edit_dialog, ui.card().classes("responsive-dialog-card"):
         with ui.element("div").classes("absolute top-2 right-2"):
             ui.button(icon="close", on_click=edit_dialog.close).props("flat round dense").tooltip("Đóng")
         ui.label("✏️ Sửa người dùng").classes("section-header mt-0 pr-8")
@@ -924,7 +937,7 @@ def locations_page():
         l_address.value = ""
         l_error.set_text("")
 
-    with ui.dialog() as create_dialog, ui.card().classes("p-6 w-[30rem] max-w-full relative"):
+    with ui.dialog() as create_dialog, ui.card().classes("responsive-dialog-card"):
         with ui.element("div").classes("absolute top-2 right-2"):
             ui.button(icon="close", on_click=create_dialog.close).props("flat round dense").tooltip("Đóng")
         ui.label("🏢 Cơ sở mới").classes("section-header mt-0 pr-8")
@@ -951,7 +964,7 @@ def locations_page():
             ui.button("Đóng", on_click=create_dialog.close, icon="close").props("outlined")
             ui.button("Lưu", on_click=handle_create_location, icon="save").props("unelevated").classes("btn-primary")
 
-    with ui.dialog() as edit_dialog, ui.card().classes("p-6 w-[30rem] max-w-full relative"):
+    with ui.dialog() as edit_dialog, ui.card().classes("responsive-dialog-card"):
         with ui.element("div").classes("absolute top-2 right-2"):
             ui.button(icon="close", on_click=edit_dialog.close).props("flat round dense").tooltip("Đóng")
         ui.label("✏️ Sửa cơ sở").classes("section-header mt-0 pr-8")

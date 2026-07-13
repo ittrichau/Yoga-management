@@ -46,7 +46,7 @@ def create_drink(data: DrinkCreate, user: dict = Depends(require_role("MANAGER")
 
     with get_db() as conn:
         cur = conn.execute(
-            """INSERT INTO drinks (location_id, name, price, description, recipe, created_by)
+            """INSERT INTO drinks (location_id, name, price_per_serving, description, recipe, created_by)
                VALUES (?, ?, ?, ?, ?, ?)""",
             (location_id, data.name, data.price, data.description, data.recipe, user["id"]),
         )
@@ -66,10 +66,12 @@ def update_drink(drink_id: int, data: DrinkUpdate, user: dict = Depends(require_
         if row is None:
             raise HTTPException(status_code=404, detail="Không tìm thấy đồ uống")
         updates = {}
-        for field in ["name", "price", "description", "recipe"]:
+        for field in ["name", "description", "recipe"]:
             val = getattr(data, field)
             if val is not None:
                 updates[field] = val
+        if data.price is not None:
+            updates["price_per_serving"] = data.price
         if not updates:
             return {"message": "Không có thay đổi"}
         updates["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
@@ -93,7 +95,7 @@ def soft_delete_drink(drink_id: int, user: dict = Depends(require_role("OWNER"))
         conn.execute("UPDATE drinks SET is_active = 0, updated_at = datetime('now','localtime') WHERE id = ?", (drink_id,))
         conn.execute(
             """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
-               VALUES (?, ?, 'soft_delete', 'drink', ?, ?)""",
+               VALUES (?, ?, 'deactivate', 'drink', ?, ?)""",
             (row["location_id"], user["id"], drink_id, f'{{"name":"{row["name"]}"}}'),
         )
     return {"message": "Đồ uống đã bị vô hiệu hóa"}
@@ -127,12 +129,12 @@ def render():
             if search:
                 like = f"%{search}%"
                 rows = conn.execute(
-                    "SELECT id, name, price, description, recipe FROM drinks WHERE is_active = 1 AND location_id = ? AND name LIKE ? ORDER BY name",
+                    "SELECT id, name, price_per_serving AS price, description, recipe FROM drinks WHERE is_active = 1 AND location_id = ? AND name LIKE ? ORDER BY name",
                     (loc_id, like),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT id, name, price, description, recipe FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
+                    "SELECT id, name, price_per_serving AS price, description, recipe FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
                     (loc_id,),
                 ).fetchall()
         result = []
@@ -184,13 +186,13 @@ def render():
                     return
                 user_id = app.storage.user.get("user_id", 1)
                 with get_db() as conn:
-                                    cur = conn.execute(
-                                        """INSERT INTO drinks (location_id, name, price, description, recipe, created_by)
-                                           VALUES (?, ?, ?, ?, ?, ?)""",
-                                        (loc_id, d_name.value, d_price.value, d_desc.value, d_recipe.value, user_id),
-                                    )
-                                    drink_id = cur.lastrowid
-                                    conn.execute(
+                    cur = conn.execute(
+                        """INSERT INTO drinks (location_id, name, price_per_serving, description, recipe, created_by)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (loc_id, d_name.value, d_price.value, d_desc.value, d_recipe.value, user_id),
+                    )
+                    drink_id = cur.lastrowid
+                    conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                            VALUES (?, ?, 'create', 'drink', ?, ?)""",
                         (loc_id, user_id, drink_id, f'{{"name":"{d_name.value}","price":{d_price.value}}}'),
@@ -222,7 +224,7 @@ def render():
                 user_id = app.storage.user.get("user_id", 1)
                 with get_db() as conn:
                     conn.execute(
-                        "UPDATE drinks SET name = ?, price = ?, description = ?, recipe = ?, updated_at = datetime('now','localtime') WHERE id = ?",
+                        "UPDATE drinks SET name = ?, price_per_serving = ?, description = ?, recipe = ?, updated_at = datetime('now','localtime') WHERE id = ?",
                         (e_name.value, e_price.value, e_desc.value, e_recipe.value, int(edit_id.value or 0)),
                     )
                     conn.execute(
@@ -274,7 +276,7 @@ def render():
                 </q-td>
                 """,
             )
-        else:
+        elif role == "MANAGER":
             drink_table.add_slot(
                 "body-cell-action",
                 """
@@ -282,6 +284,15 @@ def render():
                     <q-btn flat round dense color="primary" icon="edit" @click="$parent.$emit('edit_drink', props.row)">
                         <q-tooltip>Sửa</q-tooltip>
                     </q-btn>
+                </q-td>
+                """,
+            )
+        else:
+            drink_table.add_slot(
+                "body-cell-action",
+                """
+                <q-td :props="props">
+                    <span class="text-gray-400">Chỉ xem</span>
                 </q-td>
                 """,
             )
@@ -297,7 +308,7 @@ def render():
                     user_id = app.storage.user.get("user_id", 1)
                     conn.execute(
                         """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
-                           VALUES (?, ?, 'soft_delete', 'drink', ?, ?)""",
+                           VALUES (?, ?, 'deactivate', 'drink', ?, ?)""",
                         (loc_id, user_id, int(drink_id), f'{{"name":"{row["name"]}"}}'),
                     )
                 refresh()
