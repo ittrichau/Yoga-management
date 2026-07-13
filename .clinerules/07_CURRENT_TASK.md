@@ -9,15 +9,18 @@ alwaysApply: true
 
 - Last updated: 2026-07-13
 - Current focus: UI polish, popup close buttons, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; dashboard LeftDrawer nesting crash has been fixed locally in both dashboard render order and shared navbar drawer nesting.
+- App status: Full core system completed; `/sales` POS UI has been redesigned locally to make retail product sales clearer.
 
 ## Active Task
 
 - Task: None.
-- Next recommended task: Deploy the shared navbar drawer nesting fix, then verify `/dashboard` on production.
+- Next recommended task: Deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
 
 ## Recently Completed
 
+- Redesigned `/sales` page into a clearer POS flow: customer selection, item tabs, product search/type filter, product preview, payment card, and today transaction table with generic item labels.
+- Fixed `/sales` product sale flow to record `product_stock_adjustments` when retail products such as clothing/mats/accessories are sold from the UI.
+- Fixed `/sales` navbar render order to match the shared drawer-safe layout.
 - Fixed `/dashboard` NiceGUI crash `LeftDrawer inside Row` by moving shared `ui.left_drawer()` creation out of the header row and keeping dashboard navbar rendering before page content.
 - Fixed `/drinks` production error `OperationalError: no such column: price` by using `drinks.price_per_serving` consistently and adding safe schema migration/backfill for drink fields.
 - Cleaned up rule files and enforced automatic `.clinerules/07_CURRENT_TASK.md` updates after implementation tasks.
@@ -31,15 +34,15 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Deploy the shared navbar drawer nesting fix, then verify `/dashboard` on production.
-2. Deploy the drink schema fix, then verify `/drinks` on production.
-3. Check/add popup close icon for remaining files:
+1. Deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+2. Check/add popup close icon for remaining files:
    - `package.py`
    - `auth.py`
    - `transaction.py`
    - `product.py`
-4. Improve `/packages` search/filter if still missing.
-5. Improve validation UI and Vietnamese success/error messages.
+3. Improve `/packages` search/filter if still missing.
+4. Improve validation UI and Vietnamese success/error messages.
+5. Consider seeding a `Khách vãng lai` customer per location for walk-in retail sales while preserving audit traceability.
 6. Enrich seed data.
 7. Consider adding retail products into `package_items` for combo business cases.
 8. Add personal password change flow.
@@ -47,6 +50,8 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-13: Ran `python -m py_compile transaction.py`.
+  - Command completed successfully with no syntax errors reported.
 - 2026-07-13: Ran `python -m py_compile auth.py dashboard.py`.
   - Command completed successfully with no syntax errors reported.
 - 2026-07-13: Ran `python -c "from pathlib import Path; t=Path('auth.py').read_text(encoding='utf-8').splitlines(); print([i+1 for i,l in enumerate(t) if 'ui.left_drawer' in l]); print([i+1 for i,l in enumerate(t) if 'with ui.header' in l])"`.

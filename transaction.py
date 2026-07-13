@@ -258,30 +258,111 @@ def sales_page():
         ui.navigate.to("/select-location")
         return
 
-    render()
     render_navbar()
+    render()
 
 
 def render():
     """Render the sales / transaction creation page."""
-    role = app.storage.user.get("role", "STAFF")
     loc_id = get_current_location_id()
+
+    customer_options = {}
+    package_item_options = {}
+    drink_options = {}
+    product_options = {}
+    product_meta = {}
+
+    with get_db() as conn:
+        all_drinks = conn.execute(
+            "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
+            (loc_id,),
+        ).fetchall()
+
+    for drink in all_drinks:
+        drink_options[drink["id"]] = f"{drink['name']} ({drink['price_per_serving']:,.0f}đ/ly)"
 
     with ui.element("div").classes("page-container"):
         with ui.row().classes("items-center page-title w-full"):
             ui.icon("point_of_sale").classes("text-2xl")
-            ui.label("Bán hàng")
+            with ui.column().classes("gap-0"):
+                ui.label("Bán hàng")
+                ui.label("Bán đồ uống, gói và sản phẩm theo cơ sở hiện tại").classes("text-sm text-gray-500 font-normal")
 
-        # Step 1: Search and select customer
         with ui.element("div").classes("custom-card p-4 mb-3"):
-            ui.label("👤 Chọn khách hàng").classes("section-header")
+            ui.label("👤 Khách hàng").classes("section-header")
             with ui.element("div").classes("search-bar mt-2"):
-                search_input = ui.input("Tìm khách hàng (tên hoặc mã)").props("outlined clearable dense").classes("flex-grow")
+                search_input = ui.input("Tìm khách hàng theo tên hoặc mã").props("outlined clearable dense").classes("flex-grow")
                 ui.button("Tìm", on_click=lambda: search_customers(), icon="search").props("outlined")
+            customer_select = ui.select({}, label="Chọn khách hàng *").props("outlined dense").classes("w-full mt-3")
+            customer_hint = ui.label("Mọi giao dịch cần gắn khách hàng để truy vết doanh thu, tồn kho và audit log.").classes("text-xs text-gray-500 mt-1")
 
-    customer_options = {}
-    with ui.element("div").classes("page-container"):
-        customer_select = ui.select({}, label="Chọn khách hàng").props("outlined dense").classes("w-full mb-4")
+        with ui.element("div").classes("custom-card p-4 mb-3"):
+            ui.label("🛒 Chọn mặt hàng").classes("section-header")
+            sale_type = ui.tabs().classes("w-full mt-2 mb-3")
+            drink_tab = ui.tab("🥤 Đồ uống").props("dense")
+            product_tab = ui.tab("🧺 Sản phẩm").props("dense")
+
+            package_panel = ui.column().classes("w-full mb-3")
+            with package_panel:
+                pkg_info = ui.label().classes("text-sm font-medium text-primary mb-1")
+                package_select = ui.select({}, label="Thanh toán bằng gói đồ uống").props("outlined dense clearable").classes("w-full")
+                ui.label("Chỉ áp dụng cho đồ uống trong gói. Để trống nếu bán lẻ thu tiền.").classes("text-xs text-gray-500 mt-1")
+
+            with ui.tab_panels(sale_type, value=drink_tab).classes("w-full"):
+                with ui.tab_panel(drink_tab).classes("p-0"):
+                    if drink_options:
+                        drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
+                        drink_select.set_value(list(drink_options.keys())[0])
+                    else:
+                        drink_select = ui.select({}, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
+                        ui.label("Chưa có đồ uống đang hoạt động tại cơ sở này.").classes("text-orange-600 text-sm mb-2")
+                    servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined dense").classes("w-full mb-2")
+
+                with ui.tab_panel(product_tab).classes("p-0"):
+                    with ui.element("div").classes("search-bar mb-2"):
+                        product_search = ui.input("Tìm sản phẩm").props("outlined clearable dense").classes("flex-grow")
+                        product_type_filter = ui.select(
+                            {
+                                "": "Tất cả loại",
+                                "mat": "Thảm",
+                                "clothing": "Quần áo",
+                                "accessory": "Phụ kiện",
+                                "other": "Khác",
+                            },
+                            label="Loại",
+                            value="",
+                        ).props("outlined dense").classes("w-40")
+                        ui.button("Lọc", on_click=lambda: load_products(), icon="filter_alt").props("outlined")
+
+                    product_select = ui.select({}, label="Sản phẩm *").props("outlined dense").classes("w-full mb-2")
+                    product_qty = ui.number("Số lượng", value=1, min=1, step=1).props("outlined dense").classes("w-full mb-2")
+                    product_preview = ui.label().classes("text-sm text-gray-600 mb-2")
+
+        with ui.element("div").classes("custom-card p-4 mb-3"):
+            ui.label("💳 Thanh toán").classes("section-header")
+            amount = ui.number("Số tiền (VNĐ)", value=0, min=0, format="%.0f").props("outlined dense").classes("w-full mt-2 mb-2")
+            notes = ui.input("Ghi chú").props("outlined dense").classes("w-full mb-3")
+            err = ui.label().classes("text-red-500 text-sm mb-2")
+            success = ui.label().classes("text-green-600 text-sm mb-2")
+            ui.button("Hoàn tất bán hàng", on_click=lambda: do_sale(), icon="point_of_sale").props("unelevated").classes("w-full btn-success text-lg py-2")
+
+        with ui.element("div").classes("custom-card p-4 mt-4"):
+            with ui.row().classes("items-center justify-between w-full"):
+                ui.label("🔁 Giao dịch hôm nay").classes("section-header")
+                ui.button("Làm mới", on_click=lambda: refresh_today_table(), icon="refresh").props("outlined dense")
+            today_table = ui.table(
+                columns=[
+                    {"name": "time", "label": "Giờ", "field": "time"},
+                    {"name": "customer", "label": "Khách hàng", "field": "customer"},
+                    {"name": "item", "label": "Mặt hàng", "field": "item"},
+                    {"name": "qty", "label": "SL", "field": "qty"},
+                    {"name": "amount", "label": "Số tiền", "field": "amount"},
+                    {"name": "type", "label": "Loại", "field": "type"},
+                    {"name": "by", "label": "Nhân viên", "field": "by"},
+                ],
+                rows=[],
+                row_key="id",
+            ).classes("w-full mt-2")
 
     def search_customers():
         with get_db() as conn:
@@ -297,25 +378,29 @@ def render():
                     "SELECT id, code, full_name FROM customers WHERE is_active = 1 AND location_id = ? ORDER BY full_name LIMIT 50",
                     (loc_id,),
                 ).fetchall()
-        customer_options.clear()
-        for r in rows:
-            customer_options[r["id"]] = f"{r['code']} - {r['full_name']}"
-        customer_select.set_options(customer_options)
-        if customer_options:
-            customer_select.set_value(list(customer_options.keys())[0])
-        load_packages()
 
-    # Customer packages info
-    pkg_info = ui.label().classes("text-sm font-medium text-primary mt-1")
-    package_select = ui.select({}, label="Dùng gói (để trống nếu bán lẻ)").props("outlined dense").classes("w-full mb-2")
-    package_item_options = {}
+        customer_options.clear()
+        for row in rows:
+            customer_options[row["id"]] = f"{row['code']} - {row['full_name']}"
+        customer_select.set_options(customer_options)
+
+        if customer_options and not customer_select.value:
+            customer_select.set_value(list(customer_options.keys())[0])
+        elif not customer_options:
+            customer_select.set_value(None)
+            customer_hint.set_text("Không tìm thấy khách hàng phù hợp tại cơ sở hiện tại.")
+        else:
+            customer_hint.set_text("Mọi giao dịch cần gắn khách hàng để truy vết doanh thu, tồn kho và audit log.")
+        load_packages()
 
     def load_packages():
         customer_id = customer_select.value
         if not customer_id:
-            package_select.set_options({})
+            package_select.set_options({"": "--- Bán lẻ (thu tiền) ---"})
+            package_select.set_value("")
             pkg_info.set_text("")
             return
+
         with get_db() as conn:
             packages = conn.execute(
                 """SELECT p.*, pi.id as pi_id, pi.drink_id, pi.total_servings, pi.remaining_servings,
@@ -327,97 +412,129 @@ def render():
                    ORDER BY p.created_at DESC""",
                 (customer_id, loc_id),
             ).fetchall()
+
         package_item_options.clear()
         options = {"": "--- Bán lẻ (thu tiền) ---"}
-        for pkg in packages:
-            label = f"{pkg['name'] or 'Gói'} - {pkg['drink_name']}: {pkg['remaining_servings']:.0f}/{pkg['total_servings']:.0f} ly"
-            options[pkg["pi_id"]] = label
-            package_item_options[pkg["pi_id"]] = dict(pkg)
+        for package in packages:
+            label = f"{package['name'] or 'Gói'} - {package['drink_name']}: {package['remaining_servings']:.0f}/{package['total_servings']:.0f} ly"
+            options[package["pi_id"]] = label
+            package_item_options[package["pi_id"]] = dict(package)
+
         package_select.set_options(options)
         package_select.set_value("")
-        if packages:
-            pkg_info.set_text(f"Khách hàng có {len(packages)} gói đang hoạt động")
+        pkg_info.set_text(f"Khách hàng có {len(packages)} gói đồ uống đang hoạt động" if packages else "Khách hàng chưa có gói đồ uống còn lượt")
 
-    customer_select.on("update:model-value", load_packages)
+    def load_products():
+        search = (product_search.value or "").strip()
+        product_type = product_type_filter.value or ""
+        where = ["is_active = 1", "location_id = ?", "current_stock > 0"]
+        params = [loc_id]
+        if search:
+            where.append("name LIKE ?")
+            params.append(f"%{search}%")
+        if product_type:
+            where.append("product_type = ?")
+            params.append(product_type)
 
-    # Step 2: Choose type (Drink or Product) via Tabs
-    sale_type = ui.tabs().classes("w-full mb-2")
-    drink_tab = ui.tab("🥤 Đồ uống").props("dense")
-    product_tab = ui.tab("🧺 Sản phẩm (thảm, quần áo...)").props("dense")
-    with ui.tab_panels(sale_type, value=drink_tab).classes("w-full"):
-        with ui.tab_panel(drink_tab).classes("p-0"):
-            with get_db() as conn:
-                all_drinks = conn.execute(
-                    "SELECT id, name, price_per_serving FROM drinks WHERE is_active = 1 AND location_id = ? ORDER BY name",
-                    (loc_id,),
-                ).fetchall()
-            drink_options = {r["id"]: f"{r['name']} ({r['price_per_serving']:,.0f}đ/ly)" for r in all_drinks}
-            drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
-            if drink_options:
-                drink_select.set_value(list(drink_options.keys())[0])
-            servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined dense").classes("w-full mb-2")
+        with get_db() as conn:
+            rows = conn.execute(
+                f"""SELECT id, name, price, sale_percent, current_stock, product_type
+                    FROM products
+                    WHERE {' AND '.join(where)}
+                    ORDER BY name""",
+                params,
+            ).fetchall()
 
-        with ui.tab_panel(product_tab).classes("p-0"):
-            with get_db() as conn:
-                all_products = conn.execute(
-                    "SELECT id, name, price, sale_percent, current_stock, product_type FROM products WHERE is_active = 1 AND location_id = ? AND current_stock > 0 ORDER BY name",
-                    (loc_id,),
-                ).fetchall()
-            product_options = {}
-            for p in all_products:
-                sale_price = p["price"] * (1 - p["sale_percent"] / 100)
-                ptype = PRODUCT_TYPE_LABELS.get(p["product_type"], p["product_type"])
-                product_options[p["id"]] = f"{p['name']} ({sale_price:,.0f}đ) - Còn {p['current_stock']} cái [{ptype}]"
-            product_select = ui.select(product_options, label="Sản phẩm *").props("outlined dense").classes("w-full mb-2")
-            if product_options:
+        product_options.clear()
+        product_meta.clear()
+        for product in rows:
+            sale_price = product["price"] * (1 - product["sale_percent"] / 100)
+            type_label = PRODUCT_TYPE_LABELS.get(product["product_type"], product["product_type"])
+            product_options[product["id"]] = f"{product['name']} - {sale_price:,.0f}đ"
+            product_meta[product["id"]] = {
+                "name": product["name"],
+                "type_label": type_label,
+                "price": product["price"],
+                "sale_percent": product["sale_percent"],
+                "sale_price": sale_price,
+                "current_stock": product["current_stock"],
+            }
+
+        product_select.set_options(product_options)
+        if product_options:
+            if product_select.value not in product_options:
                 product_select.set_value(list(product_options.keys())[0])
-            product_qty = ui.number("Số lượng", value=1, min=1, step=1).props("outlined dense").classes("w-full mb-2")
+            update_product_preview()
+        else:
+            product_select.set_value(None)
+            product_preview.set_text("Không có sản phẩm còn tồn kho phù hợp. Hãy kiểm tra trang Quản lý sản phẩm.")
+            amount.set_value(0)
 
-    amount = ui.number("Số tiền (VNĐ)", value=0).props("outlined dense").classes("w-full mb-2")
-    notes = ui.input("Ghi chú").props("outlined dense").classes("w-full mb-4")
+    def update_product_preview():
+        product_id = product_select.value
+        product = product_meta.get(product_id)
+        if not product:
+            product_preview.set_text("")
+            return
 
-    err = ui.label().classes("text-red-500 text-sm mb-2")
-    success = ui.label().classes("text-green-600 text-sm mb-2")
+        qty = int(product_qty.value or 1)
+        total = product["sale_price"] * qty
+        discount = f", giảm {product['sale_percent']:.0f}%" if product["sale_percent"] else ""
+        product_preview.set_text(
+            f"{product['type_label']} · Tồn {product['current_stock']} cái · "
+            f"Giá bán {product['sale_price']:,.0f}đ{discount} · Tạm tính {total:,.0f}đ"
+        )
+        amount.set_value(total)
+
+    def update_drink_amount():
+        if package_select.value:
+            amount.set_value(0)
+            return
+        drink_id = drink_select.value
+        if not drink_id:
+            amount.set_value(0)
+            return
+        qty = servings.value or 1
+        with get_db() as conn:
+            drink = conn.execute(
+                "SELECT price_per_serving FROM drinks WHERE id = ? AND is_active = 1 AND location_id = ?",
+                (drink_id, loc_id),
+            ).fetchone()
+        amount.set_value((drink["price_per_serving"] * qty) if drink else 0)
 
     def on_package_change():
-        pkg_id = package_select.value
-        if pkg_id and pkg_id in package_item_options:
-            pkg = package_item_options[pkg_id]
-            drink_select.set_value(pkg["drink_id"])
+        package_item_id = package_select.value
+        if package_item_id and package_item_id in package_item_options:
+            package = package_item_options[package_item_id]
+            drink_select.set_value(package["drink_id"])
             servings.set_value(1)
             amount.set_value(0)
-            notes.set_value(f"Từ gói: {pkg['name'] or 'Gói'}")
+            notes.set_value(f"Từ gói: {package['name'] or 'Gói'}")
         else:
-            amount.set_value(0)
             notes.set_value("")
+            update_drink_amount()
 
-    package_select.on("update:model-value", on_package_change)
-
-    def on_drink_change():
-        if not package_select.value:
-            drink_id = drink_select.value
-            if drink_id and drink_id in drink_options:
-                qty = servings.value or 1
-                with get_db() as conn:
-                    drink = conn.execute("SELECT price_per_serving FROM drinks WHERE id = ?", (drink_id,)).fetchone()
-                if drink:
-                    amount.set_value(drink["price_per_serving"] * qty)
-
-    drink_select.on("update:model-value", on_drink_change)
-    servings.on("update:model-value", on_drink_change)
+    def on_sale_type_change():
+        is_product_mode = sale_type.value == product_tab
+        package_panel.set_visibility(not is_product_mode)
+        if is_product_mode:
+            package_select.set_value("")
+            update_product_preview()
+        else:
+            update_drink_amount()
 
     def do_sale():
         err.set_text("")
         success.set_text("")
         customer_id = customer_select.value
         if not customer_id:
-            err.set_text("Vui lòng chọn khách hàng")
+            err.set_text("Vui lòng chọn khách hàng trước khi bán hàng")
             return
 
-        pkg_item_id = package_select.value or None
-        amt = amount.value or 0
         user_id = app.storage.user.get("user_id", 1)
-        is_product_mode = (sale_type.value == product_tab)
+        is_product_mode = sale_type.value == product_tab
+        package_item_id = None if is_product_mode else (package_select.value or None)
+        amt = amount.value or 0
 
         try:
             with get_db() as conn:
@@ -432,8 +549,9 @@ def render():
                 if is_product_mode:
                     product_id = product_select.value
                     if not product_id:
-                        err.set_text("Vui lòng chọn sản phẩm")
+                        err.set_text("Vui lòng chọn sản phẩm còn tồn kho")
                         return
+
                     product = conn.execute(
                         "SELECT id, name, price, sale_percent, current_stock FROM products WHERE id = ? AND is_active = 1 AND location_id = ?",
                         (product_id, loc_id),
@@ -441,15 +559,28 @@ def render():
                     if product is None:
                         err.set_text("Sản phẩm không tồn tại hoặc đã bị vô hiệu hóa")
                         return
-                    qty = product_qty.value or 1
+
+                    qty = int(product_qty.value or 1)
+                    if qty <= 0:
+                        err.set_text("Số lượng sản phẩm phải lớn hơn 0")
+                        return
                     if product["current_stock"] < qty:
                         err.set_text(f"Không đủ hàng trong kho. Còn: {product['current_stock']} cái")
                         return
+
                     if amt == 0:
                         sale_price = product["price"] * (1 - product["sale_percent"] / 100)
                         amt = sale_price * qty
-                    conn.execute("UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now','localtime') WHERE id = ?",
-                                 (qty, product_id))
+
+                    conn.execute(
+                        "UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now','localtime') WHERE id = ?",
+                        (qty, product_id),
+                    )
+                    conn.execute(
+                        """INSERT INTO product_stock_adjustments (location_id, product_id, adjustment_type, quantity, reason, created_by)
+                           VALUES (?, ?, 'remove', ?, ?, ?)""",
+                        (loc_id, product_id, qty, f"Bán cho khách: {customer['full_name']}", user_id),
+                    )
                     cur = conn.execute(
                         """INSERT INTO transactions (location_id, customer_id, product_id, quantity, amount, notes, created_by)
                            VALUES (?, ?, ?, ?, ?, ?, ?)""",
@@ -457,12 +588,13 @@ def render():
                     )
                     tx_id = cur.lastrowid
                     item_name = product["name"]
-                    desc = f"{qty} cái {product['name']} cho {customer['full_name']}. Thu {amt:,.0f}đ"
+                    desc = f"Đã bán {qty} cái {product['name']} cho {customer['full_name']}. Thu {amt:,.0f}đ"
                 else:
                     drink_id = drink_select.value
                     if not drink_id:
                         err.set_text("Vui lòng chọn đồ uống")
                         return
+
                     drink = conn.execute(
                         "SELECT id, name, price_per_serving FROM drinks WHERE id = ? AND is_active = 1 AND location_id = ?",
                         (drink_id, loc_id),
@@ -470,14 +602,19 @@ def render():
                     if drink is None:
                         err.set_text("Đồ uống không tồn tại hoặc đã bị vô hiệu hóa")
                         return
+
                     qty = servings.value or 1
-                    if pkg_item_id:
+                    if qty <= 0:
+                        err.set_text("Số ly phải lớn hơn 0")
+                        return
+
+                    if package_item_id:
                         package_item = conn.execute(
                             """SELECT pi.*, p.name as pkg_name, p.id as pkg_id, p.location_id
                                FROM package_items pi
                                JOIN packages p ON p.id = pi.package_id
                                WHERE pi.id = ? AND p.is_active = 1 AND p.customer_id = ? AND p.location_id = ?""",
-                            (pkg_item_id, customer_id, loc_id),
+                            (package_item_id, customer_id, loc_id),
                         ).fetchone()
                         if package_item is None:
                             err.set_text("Gói không hợp lệ hoặc không thuộc khách hàng này")
@@ -490,54 +627,45 @@ def render():
                         if amt == 0:
                             amt = drink["price_per_serving"] * qty
                         _deduct_ingredients(conn, drink_id, qty, loc_id)
+
                     cur = conn.execute(
                         """INSERT INTO transactions (location_id, customer_id, drink_id, package_item_id, servings, amount, notes, created_by)
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (loc_id, customer_id, drink_id, pkg_item_id, qty, amt, notes.value, user_id),
+                        (loc_id, customer_id, drink_id, package_item_id, qty, amt, notes.value, user_id),
                     )
                     tx_id = cur.lastrowid
-                    if pkg_item_id:
+
+                    if package_item_id:
                         conn.execute(
                             "UPDATE package_items SET remaining_servings = remaining_servings - ? WHERE id = ?",
-                            (qty, pkg_item_id),
+                            (qty, package_item_id),
                         )
-                    item_name = drink["name"]
-                    desc = f"✅ Đã bán {qty} ly {drink['name']} cho {customer['full_name']}. {'(Gói)' if pkg_item_id else f'Thu {amt:,.0f}đ'}"
 
-                payment_type = "product" if is_product_mode else ("gói" if pkg_item_id else "tiền mặt")
+                    item_name = drink["name"]
+                    desc = f"Đã bán {qty:g} ly {drink['name']} cho {customer['full_name']}. {'Thanh toán bằng gói' if package_item_id else f'Thu {amt:,.0f}đ'}"
+
+                payment_type = "product" if is_product_mode else ("gói" if package_item_id else "tiền mặt")
                 conn.execute(
                     """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
                        VALUES (?, ?, 'create', 'transaction', ?, ?)""",
-                    (loc_id, user_id, tx_id,
-                     f'{{"customer": "{customer["full_name"]}", "item": "{item_name}", "amount": {amt}, "type": "{payment_type}", "is_product": {str(is_product_mode).lower()}}}'),
+                    (
+                        loc_id,
+                        user_id,
+                        tx_id,
+                        f'{{"customer": "{customer["full_name"]}", "item": "{item_name}", "amount": {amt}, "type": "{payment_type}", "is_product": {str(is_product_mode).lower()}}}',
+                    ),
                 )
 
             success.set_text(desc)
             ui.notify("Bán hàng thành công!", type="positive")
             load_packages()
+            load_products()
             refresh_today_table()
 
         except HTTPException as ex:
             err.set_text(f"Lỗi: {ex.detail}")
-
-    ui.button("Bán hàng", on_click=do_sale, icon="point_of_sale").props("unelevated").classes("w-full btn-success text-lg py-2 mb-3")
-
-    # Today's transactions
-    with ui.element("div").classes("custom-card p-4 mt-4"):
-        ui.label("🔁 Giao dịch hôm nay").classes("section-header")
-    today_table = ui.table(
-        columns=[
-            {"name": "time", "label": "Giờ", "field": "time"},
-            {"name": "customer", "label": "Khách hàng", "field": "customer"},
-            {"name": "drink", "label": "Đồ uống", "field": "drink"},
-            {"name": "qty", "label": "Số ly", "field": "qty"},
-            {"name": "amount", "label": "Tiền", "field": "amount"},
-            {"name": "type", "label": "Loại", "field": "type"},
-            {"name": "by", "label": "Nhân viên", "field": "by"},
-        ],
-        rows=[],
-        row_key="id",
-    ).classes("w-full mt-2")
+        except Exception as exc:
+            err.set_text(f"Lỗi bán hàng: {exc}")
 
     def refresh_today_table():
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d") + "%"
@@ -554,25 +682,39 @@ def render():
                     ORDER BY t.created_at DESC LIMIT 50""",
                 (today, loc_id),
             ).fetchall()
+
         today_table.rows = []
-        for r in rows:
-            is_product = bool(r["product_id"])
-            qty = r["quantity"] if is_product and r["quantity"] else r["servings"]
+        for row in rows:
+            is_product = bool(row["product_id"])
+            qty = row["quantity"] if is_product and row["quantity"] else row["servings"]
             unit = "cái" if is_product else "ly"
-            today_table.rows.append({
-                "id": r["id"],
-                "time": r["created_at"][11:19],
-                "customer": f"{r['customer_code']} - {r['customer_name']}",
-                "drink": r["item_name"] or "—",
-                "qty": f"{qty:,.0f} {unit}",
-                "amount": f"{r['amount']:,.0f}đ" if r["amount"] > 0 else "📦 Gói",
-                "type": "Sản phẩm" if is_product else ("Gói" if r["package_item_id"] else "Tiền mặt"),
-                "by": r["user_name"],
-            })
+            today_table.rows.append(
+                {
+                    "id": row["id"],
+                    "time": row["created_at"][11:19],
+                    "customer": f"{row['customer_code']} - {row['customer_name']}",
+                    "item": row["item_name"] or "—",
+                    "qty": f"{qty:,.0f} {unit}",
+                    "amount": f"{row['amount']:,.0f}đ" if row["amount"] > 0 else "📦 Gói",
+                    "type": "Sản phẩm" if is_product else ("Gói" if row["package_item_id"] else "Tiền mặt"),
+                    "by": row["user_name"],
+                }
+            )
         today_table.update()
 
-    ui.button("Làm mới", on_click=refresh_today_table, icon="refresh").props("outlined").classes("mt-2")
+    customer_select.on("update:model-value", lambda e: load_packages())
+    search_input.on("keyup.enter", lambda e: search_customers())
+    package_select.on("update:model-value", lambda e: on_package_change())
+    drink_select.on("update:model-value", lambda e: update_drink_amount())
+    servings.on("update:model-value", lambda e: update_drink_amount())
+    sale_type.on("update:model-value", lambda e: on_sale_type_change())
+    product_search.on("keyup.enter", lambda e: load_products())
+    product_type_filter.on("update:model-value", lambda e: load_products())
+    product_select.on("update:model-value", lambda e: update_product_preview())
+    product_qty.on("update:model-value", lambda e: update_product_preview())
 
-    # Initial load
     search_customers()
+    load_products()
+    on_sale_type_change()
+    update_drink_amount()
     refresh_today_table()
