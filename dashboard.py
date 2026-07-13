@@ -199,8 +199,8 @@ def dashboard_page():
         ui.navigate.to("/select-location")
         return
 
-    render()
     render_navbar()
+    render()
 
 
 def render():
