@@ -9,15 +9,17 @@ alwaysApply: true
 
 - Last updated: 2026-07-14
 - Current focus: UI polish, popup close buttons, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; global page top spacing has been reduced and `/sales` product sale flow is clearer via the dedicated product tab.
+- App status: Full core system completed; `/sales` now supports adding multiple drinks/products to a cart and checking out once.
 
 ## Active Task
 
 - Task: None.
-- Next recommended task: Verify all main pages for compact top spacing, verify `/sales` product sale flow locally, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+- Next recommended task: Verify `/sales` cart checkout flow locally, then verify all main pages for compact top spacing and deploy local fixes.
 
 ## Recently Completed
 
+- Redesigned `/sales` transaction flow into a cart checkout: staff can add multiple drinks/products with quantities, see totals, remove cart rows, and checkout all items in one action while keeping transaction rows, stock/package updates, and audit log.
+- Removed/rerouted redundant `/sales` explanatory notes, including the long customer audit-trace hint and product-sale instruction text.
 - Reduced global page top spacing by lowering `.page-container` top padding for all pages while preserving mobile bottom-nav spacing.
 - Clarified `/sales` product sale UI: fixed tab construction, renamed product tab to `Bán sản phẩm`, moved package payment inside the drink tab, and added clearer product sale instructions.
 - Tightened `/sales` UI layout: reduced top whitespace, moved payment into a side card, made the retail product tab more explicit, and compacted the today transaction table to reduce horizontal scrolling.
@@ -37,22 +39,27 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Verify all main pages for compact top spacing, verify `/sales` product sale flow locally, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
-2. Check/add popup close icon for remaining files:
+1. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
+2. Verify all main pages for compact top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+3. Check/add popup close icon for remaining files:
    - `package.py`
    - `auth.py`
    - `transaction.py`
    - `product.py`
-3. Improve `/packages` search/filter if still missing.
-4. Improve validation UI and Vietnamese success/error messages.
-5. Consider seeding a `Khách vãng lai` customer per location for walk-in retail sales while preserving audit traceability.
-6. Enrich seed data.
-7. Consider adding retail products into `package_items` for combo business cases.
-8. Add personal password change flow.
-9. Later backlog: dashboard charts, barcode/QR, print receipt, EN/VN, dark mode, optional sidebar.
+4. Improve `/packages` search/filter if still missing.
+5. Improve validation UI and Vietnamese success/error messages.
+6. Consider seeding a `Khách vãng lai` customer per location for walk-in retail sales while preserving audit traceability.
+7. Enrich seed data.
+8. Consider adding retail products into `package_items` for combo business cases.
+9. Add personal password change flow.
+10. Later backlog: dashboard charts, barcode/QR, print receipt, EN/VN, dark mode, optional sidebar.
 
 ## Verification Log
 
+- 2026-07-14: Ran `python -m py_compile transaction.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for the `/sales` cart checkout changes.
+- 2026-07-14: Ran `python -m py_compile transaction.py`.
+  - Command completed successfully with no syntax errors reported for the `/sales` cart checkout changes.
 - 2026-07-14: Ran `python -m py_compile transaction.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
   - Command completed successfully with no syntax or whitespace errors reported for the global top spacing and `/sales` product tab UI changes.
 - 2026-07-14: Ran `python -m py_compile transaction.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
