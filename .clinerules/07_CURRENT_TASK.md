@@ -7,17 +7,18 @@ alwaysApply: true
 
 ## Status Snapshot
 
-- Last updated: 2026-07-13
+- Last updated: 2026-07-14
 - Current focus: UI polish, popup close buttons, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; `/sales` POS UI has been redesigned locally to make retail product sales clearer.
+- App status: Full core system completed; `/sales` POS UI has been tightened again so retail product sales are clearly visible and the today table is more compact.
 
 ## Active Task
 
 - Task: None.
-- Next recommended task: Deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+- Next recommended task: Verify `/sales` locally, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
 
 ## Recently Completed
 
+- Tightened `/sales` UI layout: reduced top whitespace, moved payment into a side card, made the retail product tab more explicit, and compacted the today transaction table to reduce horizontal scrolling.
 - Redesigned `/sales` page into a clearer POS flow: customer selection, item tabs, product search/type filter, product preview, payment card, and today transaction table with generic item labels.
 - Fixed `/sales` product sale flow to record `product_stock_adjustments` when retail products such as clothing/mats/accessories are sold from the UI.
 - Fixed `/sales` navbar render order to match the shared drawer-safe layout.
@@ -34,7 +35,7 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+1. Verify `/sales` locally, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
 2. Check/add popup close icon for remaining files:
    - `package.py`
    - `auth.py`
@@ -50,6 +51,8 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-14: Ran `python -m py_compile transaction.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported.
 - 2026-07-13: Ran `python -m py_compile transaction.py`.
   - Command completed successfully with no syntax errors reported.
 - 2026-07-13: Ran `python -m py_compile auth.py dashboard.py`.

@@ -281,88 +281,92 @@ def render():
     for drink in all_drinks:
         drink_options[drink["id"]] = f"{drink['name']} ({drink['price_per_serving']:,.0f}đ/ly)"
 
-    with ui.element("div").classes("page-container"):
-        with ui.row().classes("items-center page-title w-full"):
+    with ui.element("div").classes("page-container sales-page-container"):
+        with ui.row().classes("items-center page-title sales-page-title w-full"):
             ui.icon("point_of_sale").classes("text-2xl")
             with ui.column().classes("gap-0"):
                 ui.label("Bán hàng")
-                ui.label("Bán đồ uống, gói và sản phẩm theo cơ sở hiện tại").classes("text-sm text-gray-500 font-normal")
+                ui.label("Bán đồ uống, gói và sản phẩm bán lẻ theo cơ sở hiện tại").classes("text-sm text-gray-500 font-normal")
 
-        with ui.element("div").classes("custom-card p-4 mb-3"):
-            ui.label("👤 Khách hàng").classes("section-header")
-            with ui.element("div").classes("search-bar mt-2"):
-                search_input = ui.input("Tìm khách hàng theo tên hoặc mã").props("outlined clearable dense").classes("flex-grow")
-                ui.button("Tìm", on_click=lambda: search_customers(), icon="search").props("outlined")
-            customer_select = ui.select({}, label="Chọn khách hàng *").props("outlined dense").classes("w-full mt-3")
-            customer_hint = ui.label("Mọi giao dịch cần gắn khách hàng để truy vết doanh thu, tồn kho và audit log.").classes("text-xs text-gray-500 mt-1")
+        with ui.element("div").classes("sales-pos-grid"):
+            with ui.element("div").classes("sales-main-column"):
+                with ui.element("div").classes("custom-card sales-card"):
+                    ui.label("👤 Khách hàng").classes("section-header sales-section-header")
+                    with ui.element("div").classes("search-bar sales-search-bar"):
+                        search_input = ui.input("Tìm khách hàng theo tên hoặc mã").props("outlined clearable dense").classes("flex-grow")
+                        ui.button("Tìm", on_click=lambda: search_customers(), icon="search").props("outlined")
+                    customer_select = ui.select({}, label="Chọn khách hàng *").props("outlined dense").classes("w-full")
+                    customer_hint = ui.label("Mọi giao dịch cần gắn khách hàng để truy vết doanh thu, tồn kho và audit log.").classes("text-xs text-gray-500 mt-1")
 
-        with ui.element("div").classes("custom-card p-4 mb-3"):
-            ui.label("🛒 Chọn mặt hàng").classes("section-header")
-            sale_type = ui.tabs().classes("w-full mt-2 mb-3")
-            drink_tab = ui.tab("🥤 Đồ uống").props("dense")
-            product_tab = ui.tab("🧺 Sản phẩm").props("dense")
+                with ui.element("div").classes("custom-card sales-card"):
+                    with ui.row().classes("items-center justify-between w-full"):
+                        ui.label("🛒 Chọn mặt hàng").classes("section-header sales-section-header")
+                        ui.label("Có thể bán sản phẩm bán lẻ tại tab Sản phẩm").classes("sales-inline-hint")
+                    sale_type = ui.tabs().classes("w-full sales-tabs")
+                    drink_tab = ui.tab("🥤 Đồ uống").props("dense")
+                    product_tab = ui.tab("🧺 Sản phẩm bán lẻ").props("dense")
 
-            package_panel = ui.column().classes("w-full mb-3")
-            with package_panel:
-                pkg_info = ui.label().classes("text-sm font-medium text-primary mb-1")
-                package_select = ui.select({}, label="Thanh toán bằng gói đồ uống").props("outlined dense clearable").classes("w-full")
-                ui.label("Chỉ áp dụng cho đồ uống trong gói. Để trống nếu bán lẻ thu tiền.").classes("text-xs text-gray-500 mt-1")
+                    package_panel = ui.column().classes("w-full sales-package-panel")
+                    with package_panel:
+                        pkg_info = ui.label().classes("text-sm font-medium text-primary mb-1")
+                        package_select = ui.select({}, label="Thanh toán bằng gói đồ uống").props("outlined dense clearable").classes("w-full")
+                        ui.label("Chỉ áp dụng cho đồ uống trong gói. Để trống nếu bán lẻ thu tiền.").classes("text-xs text-gray-500 mt-1")
 
-            with ui.tab_panels(sale_type, value=drink_tab).classes("w-full"):
-                with ui.tab_panel(drink_tab).classes("p-0"):
-                    if drink_options:
-                        drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
-                        drink_select.set_value(list(drink_options.keys())[0])
-                    else:
-                        drink_select = ui.select({}, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
-                        ui.label("Chưa có đồ uống đang hoạt động tại cơ sở này.").classes("text-orange-600 text-sm mb-2")
-                    servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined dense").classes("w-full mb-2")
+                    with ui.tab_panels(sale_type, value=drink_tab).classes("w-full sales-tab-panels"):
+                        with ui.tab_panel(drink_tab).classes("p-0"):
+                            if drink_options:
+                                drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
+                                drink_select.set_value(list(drink_options.keys())[0])
+                            else:
+                                drink_select = ui.select({}, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
+                                ui.label("Chưa có đồ uống đang hoạt động tại cơ sở này.").classes("text-orange-600 text-sm mb-2")
+                            servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined dense").classes("w-full")
 
-                with ui.tab_panel(product_tab).classes("p-0"):
-                    with ui.element("div").classes("search-bar mb-2"):
-                        product_search = ui.input("Tìm sản phẩm").props("outlined clearable dense").classes("flex-grow")
-                        product_type_filter = ui.select(
-                            {
-                                "": "Tất cả loại",
-                                "mat": "Thảm",
-                                "clothing": "Quần áo",
-                                "accessory": "Phụ kiện",
-                                "other": "Khác",
-                            },
-                            label="Loại",
-                            value="",
-                        ).props("outlined dense").classes("w-40")
-                        ui.button("Lọc", on_click=lambda: load_products(), icon="filter_alt").props("outlined")
+                        with ui.tab_panel(product_tab).classes("p-0"):
+                            ui.label("Bán sản phẩm như thảm, quần áo, phụ kiện. Hệ thống tự trừ tồn kho sau khi hoàn tất.").classes("sales-product-help")
+                            with ui.element("div").classes("search-bar sales-search-bar"):
+                                product_search = ui.input("Tìm sản phẩm").props("outlined clearable dense").classes("flex-grow")
+                                product_type_filter = ui.select(
+                                    {
+                                        "": "Tất cả loại",
+                                        "mat": "Thảm",
+                                        "clothing": "Quần áo",
+                                        "accessory": "Phụ kiện",
+                                        "other": "Khác",
+                                    },
+                                    label="Loại",
+                                    value="",
+                                ).props("outlined dense").classes("sales-type-filter")
+                                ui.button("Lọc", on_click=lambda: load_products(), icon="filter_alt").props("outlined")
 
-                    product_select = ui.select({}, label="Sản phẩm *").props("outlined dense").classes("w-full mb-2")
-                    product_qty = ui.number("Số lượng", value=1, min=1, step=1).props("outlined dense").classes("w-full mb-2")
-                    product_preview = ui.label().classes("text-sm text-gray-600 mb-2")
+                            product_select = ui.select({}, label="Sản phẩm *").props("outlined dense").classes("w-full mb-2")
+                            product_qty = ui.number("Số lượng", value=1, min=1, step=1).props("outlined dense").classes("w-full mb-2")
+                            product_preview = ui.label().classes("sales-product-preview")
 
-        with ui.element("div").classes("custom-card p-4 mb-3"):
-            ui.label("💳 Thanh toán").classes("section-header")
-            amount = ui.number("Số tiền (VNĐ)", value=0, min=0, format="%.0f").props("outlined dense").classes("w-full mt-2 mb-2")
-            notes = ui.input("Ghi chú").props("outlined dense").classes("w-full mb-3")
-            err = ui.label().classes("text-red-500 text-sm mb-2")
-            success = ui.label().classes("text-green-600 text-sm mb-2")
-            ui.button("Hoàn tất bán hàng", on_click=lambda: do_sale(), icon="point_of_sale").props("unelevated").classes("w-full btn-success text-lg py-2")
+            with ui.element("div").classes("sales-side-column"):
+                with ui.element("div").classes("custom-card sales-card sales-payment-card"):
+                    ui.label("💳 Thanh toán").classes("section-header sales-section-header")
+                    amount = ui.number("Số tiền (VNĐ)", value=0, min=0, format="%.0f").props("outlined dense").classes("w-full mb-2")
+                    notes = ui.input("Ghi chú").props("outlined dense").classes("w-full mb-3")
+                    err = ui.label().classes("text-red-500 text-sm mb-2")
+                    success = ui.label().classes("text-green-600 text-sm mb-2")
+                    ui.button("Hoàn tất bán hàng", on_click=lambda: do_sale(), icon="point_of_sale").props("unelevated").classes("w-full btn-success text-lg py-2")
 
-        with ui.element("div").classes("custom-card p-4 mt-4"):
-            with ui.row().classes("items-center justify-between w-full"):
-                ui.label("🔁 Giao dịch hôm nay").classes("section-header")
+        with ui.element("div").classes("custom-card sales-card sales-table-card"):
+            with ui.row().classes("items-center justify-between w-full sales-table-header"):
+                ui.label("🔁 Giao dịch hôm nay").classes("section-header sales-section-header")
                 ui.button("Làm mới", on_click=lambda: refresh_today_table(), icon="refresh").props("outlined dense")
             today_table = ui.table(
                 columns=[
                     {"name": "time", "label": "Giờ", "field": "time"},
-                    {"name": "customer", "label": "Khách hàng", "field": "customer"},
-                    {"name": "item", "label": "Mặt hàng", "field": "item"},
+                    {"name": "detail", "label": "Khách / mặt hàng", "field": "detail"},
                     {"name": "qty", "label": "SL", "field": "qty"},
-                    {"name": "amount", "label": "Số tiền", "field": "amount"},
-                    {"name": "type", "label": "Loại", "field": "type"},
-                    {"name": "by", "label": "Nhân viên", "field": "by"},
+                    {"name": "payment", "label": "Thanh toán", "field": "payment"},
+                    {"name": "by", "label": "NV", "field": "by"},
                 ],
                 rows=[],
                 row_key="id",
-            ).classes("w-full mt-2")
+            ).classes("w-full mt-2 sales-today-table")
 
     def search_customers():
         with get_db() as conn:
@@ -688,15 +692,15 @@ def render():
             is_product = bool(row["product_id"])
             qty = row["quantity"] if is_product and row["quantity"] else row["servings"]
             unit = "cái" if is_product else "ly"
+            payment_label = "Sản phẩm" if is_product else ("Gói" if row["package_item_id"] else "Tiền mặt")
+            amount_label = f"{row['amount']:,.0f}đ" if row["amount"] > 0 else "📦 Gói"
             today_table.rows.append(
                 {
                     "id": row["id"],
                     "time": row["created_at"][11:19],
-                    "customer": f"{row['customer_code']} - {row['customer_name']}",
-                    "item": row["item_name"] or "—",
+                    "detail": f"{row['customer_code']} - {row['customer_name']}\n{row['item_name'] or '—'}",
                     "qty": f"{qty:,.0f} {unit}",
-                    "amount": f"{row['amount']:,.0f}đ" if row["amount"] > 0 else "📦 Gói",
-                    "type": "Sản phẩm" if is_product else ("Gói" if row["package_item_id"] else "Tiền mặt"),
+                    "payment": f"{amount_label}\n{payment_label}",
                     "by": row["user_name"],
                 }
             )

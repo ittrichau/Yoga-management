@@ -895,3 +895,168 @@ header.q-header .text-white\/80 {
         font-size: 0.7rem !important;
     }
 }
+
+/* ── Sales POS Layout ───────────────────────────────────────────── */
+.sales-page-container {
+    padding-top: 4.25rem;
+}
+
+.sales-page-title {
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.65rem;
+}
+
+.sales-pos-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: 0.85rem;
+    align-items: start;
+}
+
+.sales-main-column,
+.sales-side-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    min-width: 0;
+}
+
+.sales-card {
+    padding: 0.95rem !important;
+    margin: 0 !important;
+}
+
+.sales-section-header {
+    margin: 0 0 0.65rem 0 !important;
+}
+
+.sales-search-bar {
+    margin-bottom: 0.65rem;
+}
+
+.sales-tabs {
+    margin: 0.15rem 0 0.75rem 0;
+    border-radius: var(--radius-sm);
+    background: var(--gray-50);
+}
+
+.sales-tab-panels {
+    background: transparent !important;
+}
+
+.sales-package-panel {
+    margin-bottom: 0.75rem;
+}
+
+.sales-inline-hint {
+    color: var(--gray-500);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.sales-product-help {
+    color: var(--gray-600);
+    background: var(--primary-bg);
+    border: 1px solid rgba(143, 175, 157, 0.24);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 0.7rem;
+    margin-bottom: 0.65rem;
+    font-size: 0.84rem;
+}
+
+.sales-product-preview {
+    color: var(--gray-700);
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 0.7rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.86rem;
+}
+
+.sales-type-filter {
+    width: 10rem;
+}
+
+.sales-payment-card {
+    position: sticky;
+    top: 4.75rem;
+}
+
+.sales-table-card {
+    margin-top: 0.85rem !important;
+}
+
+.sales-table-header {
+    gap: 0.5rem;
+}
+
+.sales-today-table .q-table {
+    min-width: 0 !important;
+    table-layout: fixed;
+}
+
+.sales-today-table .q-table th,
+.sales-today-table .q-table td {
+    padding: 0.5rem 0.55rem !important;
+    vertical-align: top;
+}
+
+.sales-today-table .q-table th:nth-child(1),
+.sales-today-table .q-table td:nth-child(1) {
+    width: 5.5rem;
+    white-space: nowrap;
+}
+
+.sales-today-table .q-table th:nth-child(2),
+.sales-today-table .q-table td:nth-child(2) {
+    width: auto;
+    white-space: pre-line;
+    word-break: break-word;
+}
+
+.sales-today-table .q-table th:nth-child(3),
+.sales-today-table .q-table td:nth-child(3) {
+    width: 5.25rem;
+    white-space: nowrap;
+}
+
+.sales-today-table .q-table th:nth-child(4),
+.sales-today-table .q-table td:nth-child(4) {
+    width: 7.25rem;
+    white-space: pre-line;
+}
+
+.sales-today-table .q-table th:nth-child(5),
+.sales-today-table .q-table td:nth-child(5) {
+    width: 8rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    .sales-pos-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .sales-payment-card {
+        position: static;
+    }
+}
+
+@media (max-width: 640px) {
+    .sales-page-container {
+        padding-top: 4rem;
+    }
+
+    .sales-inline-hint {
+        display: none;
+    }
+
+    .sales-type-filter {
+        width: 100%;
+    }
+
+    .sales-today-table .q-table {
+        min-width: 560px !important;
+    }
+}
