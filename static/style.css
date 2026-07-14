@@ -62,14 +62,14 @@ body {
     max-width: 1320px;
     margin: 0 auto;
     padding: 0.875rem;
-    padding-top: 0.875rem;
+    padding-top: 0.25rem;
     box-sizing: border-box;
 }
 
 @media (min-width: 768px) {
     .page-container {
         padding: 1.5rem;
-        padding-top: 1.25rem;
+        padding-top: 0.35rem;
     }
 }
 
@@ -898,7 +898,7 @@ header.q-header .text-white\/80 {
 
 /* ── Sales POS Layout ───────────────────────────────────────────── */
 .sales-page-container {
-    padding-top: 0.875rem;
+    padding-top: 0.25rem;
 }
 
 .sales-page-title {
@@ -1045,7 +1045,7 @@ header.q-header .text-white\/80 {
 
 @media (max-width: 640px) {
     .sales-page-container {
-        padding-top: 0.75rem;
+        padding-top: 0.25rem;
     }
 
     .sales-inline-hint {

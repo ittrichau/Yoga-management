@@ -9,15 +9,16 @@ alwaysApply: true
 
 - Last updated: 2026-07-14
 - Current focus: UI polish, popup close buttons, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; `/sales` now supports adding multiple drinks/products to a cart and checking out once.
+- App status: Full core system completed; global page top padding has been tightened so pages sit closer to the navbar.
 
 ## Active Task
 
 - Task: None.
-- Next recommended task: Verify `/sales` cart checkout flow locally, then verify all main pages for compact top spacing and deploy local fixes.
+- Next recommended task: Verify all main pages for the tightened top spacing, then verify `/sales` cart checkout flow locally.
 
 ## Recently Completed
 
+- Tightened global page top spacing again by reducing `.page-container` top padding and the `/sales` page-specific top padding so pages sit closer to the navbar.
 - Redesigned `/sales` transaction flow into a cart checkout: staff can add multiple drinks/products with quantities, see totals, remove cart rows, and checkout all items in one action while keeping transaction rows, stock/package updates, and audit log.
 - Removed/rerouted redundant `/sales` explanatory notes, including the long customer audit-trace hint and product-sale instruction text.
 - Reduced global page top spacing by lowering `.page-container` top padding for all pages while preserving mobile bottom-nav spacing.
@@ -39,8 +40,8 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
-2. Verify all main pages for compact top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+1. Verify all main pages for the tightened top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+2. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
 3. Check/add popup close icon for remaining files:
    - `package.py`
    - `auth.py`
@@ -56,6 +57,8 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-14: Ran `git diff --check`.
+  - Command completed successfully with no whitespace errors reported for the CSS top-spacing changes.
 - 2026-07-14: Ran `python -m py_compile transaction.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
   - Command completed successfully with no syntax or whitespace errors reported for the `/sales` cart checkout changes.
 - 2026-07-14: Ran `python -m py_compile transaction.py`.
