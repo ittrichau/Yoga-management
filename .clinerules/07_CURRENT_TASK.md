@@ -9,15 +9,17 @@ alwaysApply: true
 
 - Last updated: 2026-07-14
 - Current focus: UI polish, popup close buttons, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; `/sales` POS UI has been tightened again so retail product sales are clearly visible and the today table is more compact.
+- App status: Full core system completed; global page top spacing has been reduced and `/sales` product sale flow is clearer via the dedicated product tab.
 
 ## Active Task
 
 - Task: None.
-- Next recommended task: Verify `/sales` locally, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+- Next recommended task: Verify all main pages for compact top spacing, verify `/sales` product sale flow locally, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
 
 ## Recently Completed
 
+- Reduced global page top spacing by lowering `.page-container` top padding for all pages while preserving mobile bottom-nav spacing.
+- Clarified `/sales` product sale UI: fixed tab construction, renamed product tab to `Bán sản phẩm`, moved package payment inside the drink tab, and added clearer product sale instructions.
 - Tightened `/sales` UI layout: reduced top whitespace, moved payment into a side card, made the retail product tab more explicit, and compacted the today transaction table to reduce horizontal scrolling.
 - Redesigned `/sales` page into a clearer POS flow: customer selection, item tabs, product search/type filter, product preview, payment card, and today transaction table with generic item labels.
 - Fixed `/sales` product sale flow to record `product_stock_adjustments` when retail products such as clothing/mats/accessories are sold from the UI.
@@ -35,7 +37,7 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Verify `/sales` locally, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+1. Verify all main pages for compact top spacing, verify `/sales` product sale flow locally, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
 2. Check/add popup close icon for remaining files:
    - `package.py`
    - `auth.py`
@@ -51,6 +53,8 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-14: Ran `python -m py_compile transaction.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for the global top spacing and `/sales` product tab UI changes.
 - 2026-07-14: Ran `python -m py_compile transaction.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
   - Command completed successfully with no syntax or whitespace errors reported.
 - 2026-07-13: Ran `python -m py_compile transaction.py`.

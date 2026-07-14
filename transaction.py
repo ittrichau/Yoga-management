@@ -301,19 +301,18 @@ def render():
                 with ui.element("div").classes("custom-card sales-card"):
                     with ui.row().classes("items-center justify-between w-full"):
                         ui.label("🛒 Chọn mặt hàng").classes("section-header sales-section-header")
-                        ui.label("Có thể bán sản phẩm bán lẻ tại tab Sản phẩm").classes("sales-inline-hint")
-                    sale_type = ui.tabs().classes("w-full sales-tabs")
-                    drink_tab = ui.tab("🥤 Đồ uống").props("dense")
-                    product_tab = ui.tab("🧺 Sản phẩm bán lẻ").props("dense")
-
-                    package_panel = ui.column().classes("w-full sales-package-panel")
-                    with package_panel:
-                        pkg_info = ui.label().classes("text-sm font-medium text-primary mb-1")
-                        package_select = ui.select({}, label="Thanh toán bằng gói đồ uống").props("outlined dense clearable").classes("w-full")
-                        ui.label("Chỉ áp dụng cho đồ uống trong gói. Để trống nếu bán lẻ thu tiền.").classes("text-xs text-gray-500 mt-1")
+                        ui.label("Chọn tab Bán sản phẩm để bán thảm, quần áo, phụ kiện").classes("sales-inline-hint")
+                    with ui.tabs().classes("w-full sales-tabs") as sale_type:
+                        drink_tab = ui.tab("🥤 Đồ uống").props("dense")
+                        product_tab = ui.tab("🧺 Bán sản phẩm").props("dense")
 
                     with ui.tab_panels(sale_type, value=drink_tab).classes("w-full sales-tab-panels"):
                         with ui.tab_panel(drink_tab).classes("p-0"):
+                            package_panel = ui.column().classes("w-full sales-package-panel")
+                            with package_panel:
+                                pkg_info = ui.label().classes("text-sm font-medium text-primary mb-1")
+                                package_select = ui.select({}, label="Thanh toán bằng gói đồ uống").props("outlined dense clearable").classes("w-full")
+                                ui.label("Chỉ áp dụng cho đồ uống trong gói. Để trống nếu bán lẻ thu tiền.").classes("text-xs text-gray-500 mt-1")
                             if drink_options:
                                 drink_select = ui.select(drink_options, label="Đồ uống *").props("outlined dense").classes("w-full mb-2")
                                 drink_select.set_value(list(drink_options.keys())[0])
@@ -323,7 +322,7 @@ def render():
                             servings = ui.number("Số ly", value=1, min=0.1, step=0.5).props("outlined dense").classes("w-full")
 
                         with ui.tab_panel(product_tab).classes("p-0"):
-                            ui.label("Bán sản phẩm như thảm, quần áo, phụ kiện. Hệ thống tự trừ tồn kho sau khi hoàn tất.").classes("sales-product-help")
+                            ui.label("Bán sản phẩm như thảm, quần áo, phụ kiện. Chọn sản phẩm còn tồn kho, nhập số lượng rồi bấm Hoàn tất bán hàng. Hệ thống tự trừ tồn kho.").classes("sales-product-help")
                             with ui.element("div").classes("search-bar sales-search-bar"):
                                 product_search = ui.input("Tìm sản phẩm").props("outlined clearable dense").classes("flex-grow")
                                 product_type_filter = ui.select(
