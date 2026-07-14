@@ -14,9 +14,9 @@ from database import get_db
 from settings import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
 
 
-ROLE_OPTIONS = ("STAFF", "MANAGER", "OWNER")
-ROLE_HIERARCHY = {"STAFF": 1, "MANAGER": 2, "OWNER": 3}
-ROLE_LABELS = {"STAFF": "Nhân viên", "MANAGER": "Quản lý", "OWNER": "Chủ sở hữu"}
+ROLE_OPTIONS = ("ADMIN", "OWNER", "TEACHER")
+ROLE_HIERARCHY = {"TEACHER": 1, "OWNER": 2, "ADMIN": 3}
+ROLE_LABELS = {"ADMIN": "Admin", "OWNER": "Chủ phòng", "TEACHER": "Giáo viên"}
 
 
 # ==================== Models ====================
@@ -29,7 +29,7 @@ class UserCreate(BaseModel):
     username: str
     password: str
     full_name: str = ""
-    role: str = "STAFF"
+    role: str = "TEACHER"
     location_ids: list[int] = []
 
 
@@ -107,10 +107,10 @@ def ensure_logged_in() -> bool:
 def ensure_owner_page() -> bool:
     if not ensure_logged_in():
         return False
-    if app.storage.user.get("role", "STAFF") == "OWNER":
+    if app.storage.user.get("role", "TEACHER") == "ADMIN":
         return True
     load_styles()
-    render_access_denied("Từ chối truy cập. Chỉ OWNER mới có quyền.")
+    render_access_denied("Từ chối truy cập. Chỉ Admin mới có quyền.")
     return False
 
 
@@ -232,27 +232,40 @@ def validate_role(role: str) -> None:
 
 def create_user_record(data: UserCreate, actor_id: int) -> int:
     validate_role(data.role)
-    if not data.username.strip() or not data.password:
+    username = data.username.strip()
+    if not username or not data.password:
         raise HTTPException(status_code=400, detail="Vui lòng nhập tên đăng nhập và mật khẩu")
 
     with get_db() as conn:
-        existing = conn.execute("SELECT id FROM users WHERE username = ?", (data.username.strip(),)).fetchone()
+        existing = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
         if existing:
             raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại")
 
+        location_ids = data.location_ids
+        if not location_ids:
+            location_rows = conn.execute("SELECT id FROM locations WHERE is_active = 1 ORDER BY name").fetchall()
+            location_ids = [row["id"] for row in location_rows]
+
         conn.execute(
             "INSERT INTO users (username, hashed_password, full_name, role) VALUES (?, ?, ?, ?)",
-            (data.username.strip(), hash_password(data.password), data.full_name.strip(), data.role),
+            (username, hash_password(data.password), data.full_name.strip(), data.role),
         )
         user_id = conn.lastrowid
 
-        for location_id in data.location_ids:
+        for location_id in location_ids:
             conn.execute(
                 "INSERT OR IGNORE INTO user_locations (user_id, location_id) VALUES (?, ?)",
                 (user_id, location_id),
             )
 
-        audit(conn, actor_id, "create", "user", user_id, {"username": data.username.strip(), "role": data.role})
+        audit(
+            conn,
+            actor_id,
+            "create",
+            "user",
+            user_id,
+            {"username": username, "role": data.role, "location_ids": location_ids},
+        )
     return user_id
 
 
@@ -387,41 +400,41 @@ def my_locations(user: dict = Depends(get_current_user)):
 
 
 @router.get("/api/users")
-def list_users(user: dict = Depends(require_role("OWNER"))):
+def list_users(user: dict = Depends(require_role("ADMIN"))):
     return fetch_users_with_locations()
 
 
 @router.post("/api/users", status_code=201)
-def create_user(data: UserCreate, user: dict = Depends(require_role("OWNER"))):
+def create_user(data: UserCreate, user: dict = Depends(require_role("ADMIN"))):
     user_id = create_user_record(data, user["id"])
     return {"id": user_id, "message": "Người dùng đã được tạo"}
 
 
 @router.put("/api/users/{user_id}")
-def update_user(user_id: int, data: UserUpdate, user: dict = Depends(require_role("OWNER"))):
+def update_user(user_id: int, data: UserUpdate, user: dict = Depends(require_role("ADMIN"))):
     update_user_record(user_id, data, user["id"])
     return {"message": "Người dùng đã được cập nhật"}
 
 
 @router.put("/api/users/{user_id}/deactivate")
-def deactivate_user(user_id: int, user: dict = Depends(require_role("OWNER"))):
+def deactivate_user(user_id: int, user: dict = Depends(require_role("ADMIN"))):
     set_user_active(user_id, False, user["id"])
     return {"message": "Người dùng đã bị vô hiệu hóa"}
 
 
 @router.get("/api/locations")
-def list_locations(user: dict = Depends(require_role("OWNER"))):
+def list_locations(user: dict = Depends(require_role("ADMIN"))):
     return fetch_active_locations()
 
 
 @router.post("/api/locations", status_code=201)
-def create_location(data: dict, user: dict = Depends(require_role("OWNER"))):
+def create_location(data: dict, user: dict = Depends(require_role("ADMIN"))):
     location_id = create_location_record(data, user["id"])
     return {"id": location_id, "message": "Cơ sở đã được tạo"}
 
 
 @router.put("/api/locations/{location_id}")
-def update_location(location_id: int, data: dict, user: dict = Depends(require_role("OWNER"))):
+def update_location(location_id: int, data: dict, user: dict = Depends(require_role("ADMIN"))):
     update_location_record(location_id, data, user["id"])
     return {"message": "Cơ sở đã được cập nhật"}
 
@@ -507,7 +520,7 @@ def render_navbar():
     """Shared responsive navbar with location switcher + mobile bottom bar."""
     load_styles()
 
-    role = app.storage.user.get("role", "STAFF")
+    role = app.storage.user.get("role", "TEACHER")
     username = app.storage.user.get("username", "")
     loc_id = get_current_location_id()
     loc_name = get_current_location_name()
@@ -557,7 +570,7 @@ def render_navbar():
                     "flat no-caps align=left"
                 ).classes("drawer-nav-btn w-full")
 
-            if role in ("MANAGER", "OWNER"):
+            if role in ("OWNER", "ADMIN"):
                 ui.separator()
                 ui.label("Quản lý").classes("drawer-section-label")
                 for icon, label, path in [
@@ -569,7 +582,7 @@ def render_navbar():
                         "flat no-caps align=left"
                     ).classes("drawer-nav-btn w-full")
 
-            if role == "OWNER":
+            if role == "ADMIN":
                 ui.separator()
                 ui.label("Quản trị").classes("drawer-section-label")
                 ui.button("Người dùng", icon="manage_accounts", on_click=lambda: ui.navigate.to("/users")).props(
@@ -746,7 +759,7 @@ def users_page():
         return
 
     render_navbar()
-    render_page_title("👥", "Quản lý người dùng", "Tạo tài khoản, phân quyền và gán cơ sở làm việc")
+    render_page_title("👥", "Quản lý người dùng", "Tạo tài khoản, phân quyền và quản lý quyền truy cập cơ sở")
 
     users = ui.table(
         columns=[
@@ -772,7 +785,7 @@ def users_page():
         c_username.value = ""
         c_password.value = ""
         c_fullname.value = ""
-        c_role.value = "STAFF"
+        c_role.value = "TEACHER"
         c_locations.value = []
         c_error.set_text("")
 
@@ -785,8 +798,11 @@ def users_page():
             "w-full mb-2"
         )
         c_fullname = ui.input("Họ tên").props("outlined").classes("w-full mb-2")
-        c_role = ui.select(list(ROLE_OPTIONS), label="Vai trò *", value="STAFF").props("outlined").classes("w-full mb-2")
-        c_locations = ui.select(location_options, label="Cơ sở", multiple=True).props("outlined").classes("w-full mb-3")
+        c_role = ui.select(ROLE_LABELS, label="Vai trò *", value="TEACHER").props("outlined").classes("w-full mb-2")
+        c_locations = ui.select(location_options, label="Cơ sở", multiple=True).props("outlined").classes("w-full mb-1")
+        ui.label("Có thể để trống: người dùng mới sẽ tự động được gán vào tất cả cơ sở đang hoạt động.").classes(
+            "text-xs text-gray-500 mb-3"
+        )
         c_error = ui.label().classes("text-red-500 text-sm min-h-5")
 
         def handle_create():
@@ -796,7 +812,7 @@ def users_page():
                         username=c_username.value or "",
                         password=c_password.value or "",
                         full_name=c_fullname.value or "",
-                        role=c_role.value or "STAFF",
+                        role=c_role.value or "TEACHER",
                         location_ids=c_locations.value or [],
                     ),
                     app.storage.user.get("user_id", 1),
@@ -821,7 +837,7 @@ def users_page():
         e_id = ui.label().classes("hidden")
         e_username = ui.input("Tên đăng nhập").props("outlined readonly").classes("w-full mb-2")
         e_fullname = ui.input("Họ tên").props("outlined").classes("w-full mb-2")
-        e_role = ui.select(list(ROLE_OPTIONS), label="Vai trò").props("outlined").classes("w-full mb-2")
+        e_role = ui.select(ROLE_LABELS, label="Vai trò").props("outlined").classes("w-full mb-2")
         e_password = ui.input("Mật khẩu mới", password=True, password_toggle_button=True).props("outlined").classes(
             "w-full mb-2"
         )
@@ -860,7 +876,7 @@ def users_page():
             with ui.row().classes("admin-toolbar items-center justify-between w-full gap-2 mb-4"):
                 with ui.column().classes("gap-0"):
                     ui.label("Danh sách người dùng").classes("font-bold text-lg")
-                    ui.label("Quản lý trạng thái, vai trò và cơ sở được phép truy cập").classes("text-sm text-gray-500")
+                    ui.label("Người dùng mới được gán mặc định vào tất cả cơ sở đang hoạt động").classes("text-sm text-gray-500")
                 with ui.row().classes("gap-2"):
                     ui.button("Người dùng mới", on_click=lambda: (reset_create_form(), create_dialog.open()), icon="add").props(
                         "unelevated"
@@ -883,6 +899,29 @@ def users_page():
         e_locations.value = data["location_ids"]
         e_error.set_text("")
         edit_dialog.open()
+
+    with ui.dialog() as confirm_user_status_dialog, ui.card().classes("responsive-dialog-card"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=confirm_user_status_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("Xác nhận đổi trạng thái").classes("section-header mt-0 pr-8")
+        confirm_user_status_text = ui.label().classes("text-sm text-gray-600 mb-4")
+        confirm_user_status_id = ui.number("confirm_user_status_id").props("hidden")
+        confirm_user_status_active = ui.checkbox("active").classes("hidden")
+
+        def confirm_change_user_status():
+            confirm_user_status_dialog.close()
+            change_user_status(int(confirm_user_status_id.value or 0), bool(confirm_user_status_active.value))
+
+        with ui.row().classes("gap-2 justify-end w-full"):
+            ui.button("Hủy", on_click=confirm_user_status_dialog.close, icon="close").props("outlined")
+            ui.button("Xác nhận", on_click=confirm_change_user_status, icon="check").props("unelevated color=negative")
+
+    def open_confirm_user_status(row_id, is_active: bool):
+        confirm_user_status_id.value = int(row_id)
+        confirm_user_status_active.value = is_active
+        action_label = "kích hoạt lại" if is_active else "vô hiệu hóa"
+        confirm_user_status_text.set_text(f"Bạn có chắc muốn {action_label} người dùng này?")
+        confirm_user_status_dialog.open()
 
     def change_user_status(row_id, is_active: bool):
         try:
@@ -913,8 +952,8 @@ def users_page():
         """,
     )
     users.on("edit_user", lambda e: open_edit(e.args))
-    users.on("deactivate_user", lambda e: change_user_status(e.args, False))
-    users.on("activate_user", lambda e: change_user_status(e.args, True))
+    users.on("deactivate_user", lambda e: open_confirm_user_status(e.args, False))
+    users.on("activate_user", lambda e: open_confirm_user_status(e.args, True))
 
     refresh()
 
@@ -1039,6 +1078,27 @@ def locations_page():
         le_error.set_text("")
         edit_dialog.open()
 
+    with ui.dialog() as confirm_location_deactivate_dialog, ui.card().classes("responsive-dialog-card"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=confirm_location_deactivate_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("Xác nhận vô hiệu hóa").classes("section-header mt-0 pr-8")
+        ui.label("Bạn có chắc muốn vô hiệu hóa cơ sở này? Cơ sở sẽ không còn xuất hiện trong lựa chọn làm việc.").classes(
+            "text-sm text-gray-600 mb-4"
+        )
+        confirm_location_deactivate_id = ui.number("confirm_location_deactivate_id").props("hidden")
+
+        def confirm_deactivate_location():
+            confirm_location_deactivate_dialog.close()
+            deactivate_location_ui(int(confirm_location_deactivate_id.value or 0))
+
+        with ui.row().classes("gap-2 justify-end w-full"):
+            ui.button("Hủy", on_click=confirm_location_deactivate_dialog.close, icon="close").props("outlined")
+            ui.button("Vô hiệu hóa", on_click=confirm_deactivate_location, icon="delete").props("unelevated color=negative")
+
+    def open_confirm_deactivate_location(row_id):
+        confirm_location_deactivate_id.value = int(row_id)
+        confirm_location_deactivate_dialog.open()
+
     def deactivate_location_ui(row_id):
         try:
             set_location_active(int(row_id), False, app.storage.user.get("user_id", 1))
@@ -1065,6 +1125,6 @@ def locations_page():
         """,
     )
     table.on("edit_location", lambda e: open_edit_location(e.args))
-    table.on("deactivate_location", lambda e: deactivate_location_ui(e.args))
+    table.on("deactivate_location", lambda e: open_confirm_deactivate_location(e.args))
 
     refresh_locations()

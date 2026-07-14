@@ -92,9 +92,9 @@ def list_logs(
     date_from: str | None = None,
     date_to: str | None = None,
     limit: int = 200,
-    user: dict = Depends(require_role("MANAGER")),
+    user: dict = Depends(require_role("OWNER")),
 ):
-    """List audit logs. MANAGER+ only (excluding user/location logs unless OWNER)."""
+    """List audit logs. OWNER+ only (excluding user/location logs unless ADMIN)."""
     with get_db() as conn:
         where = []
         params = []
@@ -116,8 +116,8 @@ def list_logs(
         if date_to:
             where.append("al.created_at <= ?")
             params.append(date_to)
-        # MANAGER không thấy log về user/location
-        if user["role"] != "OWNER":
+        # OWNER không thấy log về user/location
+        if user["role"] != "ADMIN":
             where.append("al.entity_type NOT IN ('user', 'location')")
         where_clause = ("WHERE " + " AND ".join(where)) if where else ""
         rows = conn.execute(
@@ -138,7 +138,7 @@ def list_logs(
 
 
 @router.get("/users")
-def list_users_for_filter(user: dict = Depends(require_role("MANAGER"))):
+def list_users_for_filter(user: dict = Depends(require_role("OWNER"))):
     """List users for filter dropdown."""
     with get_db() as conn:
         rows = conn.execute("SELECT id, username, full_name FROM users WHERE is_active = 1 ORDER BY full_name, username").fetchall()
@@ -150,7 +150,7 @@ def summary_by_user(
     location_id: int | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
-    user: dict = Depends(require_role("MANAGER")),
+    user: dict = Depends(require_role("OWNER")),
 ):
     """Aggregate count per user for the 'By user' tab."""
     with get_db() as conn:
@@ -165,7 +165,7 @@ def summary_by_user(
         if date_to:
             where.append("al.created_at <= ?")
             params.append(date_to)
-        if user["role"] != "OWNER":
+        if user["role"] != "ADMIN":
             where.append("al.entity_type NOT IN ('user', 'location')")
         where_clause = ("WHERE " + " AND ".join(where)) if where else ""
         rows = conn.execute(
@@ -188,17 +188,17 @@ def summary_by_user(
 @router.get("/suspicious")
 def list_suspicious(
     location_id: int | None = None,
-    user: dict = Depends(require_role("MANAGER")),
+    user: dict = Depends(require_role("OWNER")),
 ):
     """Heuristic suspicious logs:
     - inventory_adjust between 22:00-06:00
-    - deactivate by non-OWNER (data quality issue)
+    - deactivate by non-ADMIN (data quality issue)
     - rapid activity: >20 transactions by 1 user in last 1 hour
     """
     with get_db() as conn:
         where = ["al.location_id = ?"] if location_id else []
         params = [location_id] if location_id else []
-        if user["role"] != "OWNER":
+        if user["role"] != "ADMIN":
             where.append("al.entity_type NOT IN ('user', 'location')")
         where_clause = ("WHERE " + " AND ".join(where)) if where else ""
 
@@ -227,9 +227,9 @@ def list_suspicious(
             ([location_id] if location_id else []),
         ).fetchall()
 
-        # 3) User changes by non-OWNER
+        # 3) User changes by non-ADMIN
         user_change_rows = []
-        if user["role"] == "OWNER":
+        if user["role"] == "ADMIN":
             user_change_rows = conn.execute(
                 """SELECT al.*, u.username, u.full_name as user_full_name
                    FROM audit_logs al
@@ -273,7 +273,7 @@ def list_suspicious(
 def entity_history(
     entity_type: str,
     entity_id: int,
-    user: dict = Depends(require_role("MANAGER")),
+    user: dict = Depends(require_role("OWNER")),
 ):
     """All audit logs touching a specific entity."""
     with get_db() as conn:
@@ -304,9 +304,9 @@ def audit_page():
 
 def render():
     """Render the audit log page."""
-    role = app.storage.user.get("role", "STAFF")
+    role = app.storage.user.get("role", "TEACHER")
     loc_id = get_current_location_id()
-    is_owner = role == "OWNER"
+    is_owner = role == "ADMIN"
     render_navbar()
 
     with ui.element("div").classes("page-container"):
@@ -324,7 +324,7 @@ def render():
         label = u["full_name"] or u["username"]
         user_options[str(u["id"])] = label
 
-    # Entity options (OWNER thấy thêm user/location)
+    # Entity options (ADMIN thấy thêm user/location)
     entity_options = ["customer", "drink", "ingredient", "transaction", "package"]
     if is_owner:
         entity_options += ["user", "location"]
@@ -409,7 +409,7 @@ def render():
                                 params.append(dt.strftime("%Y-%m-%d"))
                             except ValueError:
                                 params.append(date_to.value)
-                        if role != "OWNER":
+                        if role != "ADMIN":
                             where.append("al.entity_type NOT IN ('user', 'location')")
                         where_clause = "WHERE " + " AND ".join(where)
                         rows = conn.execute(
@@ -566,7 +566,7 @@ def render():
                         except ValueError:
                             params.append(sum_to.value)
                         where.append("al.created_at < ?")
-                    if role != "OWNER":
+                    if role != "ADMIN":
                         where.append("al.entity_type NOT IN ('user', 'location')")
                     where_clause = ("WHERE " + " AND ".join(where)) if where else ""
                     rows = conn.execute(

@@ -98,7 +98,7 @@ def get_expiring_packages(user: dict = Depends(get_current_user)):
 
 
 @router.get("/fraud-alerts")
-def get_fraud_alerts(user: dict = Depends(require_role("MANAGER"))):
+def get_fraud_alerts(user: dict = Depends(require_role("OWNER"))):
     today = _today_str() + "%"
     alerts = []
     with get_db() as conn:
@@ -205,7 +205,7 @@ def dashboard_page():
 
 def render():
     """Render the dashboard content."""
-    role = app.storage.user.get("role", "STAFF")
+    role = app.storage.user.get("role", "TEACHER")
     loc_id = get_current_location_id()
     loc_name = get_current_location_name()
     today_prefix = _today_str() + "%"
@@ -460,8 +460,8 @@ def render():
                     with ui.element("div").classes("alert-card warning"):
                         ui.label(f"{a['customer']} - {a['name']} ({a['end_date']}): {a['reasons']}").classes("text-sm font-medium")
 
-        # Fraud Alerts (MANAGER+)
-        if role in ("MANAGER", "OWNER"):
+        # Fraud Alerts (OWNER+)
+        if role in ("OWNER", "ADMIN"):
             with ui.element("div").classes("custom-card p-4 mt-4"):
                 ui.label("🔍 Giao dịch bất thường").classes("section-header")
                 with get_db() as conn:

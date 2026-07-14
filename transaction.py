@@ -609,6 +609,28 @@ def render():
         refresh_cart_table()
         success.set_text(f"Đã thêm {product['name']} vào giỏ")
 
+    with ui.dialog() as confirm_remove_cart_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=confirm_remove_cart_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("Xác nhận xóa khỏi giỏ").classes("text-xl font-bold mb-2 pr-8")
+        confirm_remove_cart_text = ui.label().classes("text-sm text-gray-600 mb-4")
+        confirm_remove_cart_id = ui.number("confirm_remove_cart_id").props("hidden")
+
+        def confirm_remove_cart_item():
+            confirm_remove_cart_dialog.close()
+            remove_cart_item(int(confirm_remove_cart_id.value or 0))
+
+        with ui.row().classes("gap-2 justify-end w-full"):
+            ui.button("Hủy", on_click=confirm_remove_cart_dialog.close, icon="close").props("outlined")
+            ui.button("Xóa khỏi giỏ", on_click=confirm_remove_cart_item, icon="delete").props("unelevated color=negative")
+
+    def open_confirm_remove_cart_item(cart_id):
+        confirm_remove_cart_id.value = int(cart_id)
+        item = next((item for item in cart_items if item["cart_id"] == cart_id), None)
+        item_label = item["name"] if item else "món này"
+        confirm_remove_cart_text.set_text(f"Bạn có chắc muốn xóa {item_label} khỏi giỏ hàng?")
+        confirm_remove_cart_dialog.open()
+
     def remove_cart_item(cart_id):
         cart_items[:] = [item for item in cart_items if item["cart_id"] != cart_id]
         refresh_cart_table()
@@ -807,7 +829,7 @@ def render():
         </q-td>
         """,
     )
-    cart_table.on("remove", lambda e: remove_cart_item(e.args))
+    cart_table.on("remove", lambda e: open_confirm_remove_cart_item(e.args))
 
     customer_select.on("update:model-value", lambda e: load_packages())
     search_input.on("keyup.enter", lambda e: search_customers())

@@ -106,7 +106,7 @@ def _compute_top_up(conn, old_pkg: dict, new_template: dict) -> dict:
 # API
 # ---------------------------------------------------------------------------
 @router.post("/preview")
-def upgrade_preview(data: UpgradePreview, user: dict = Depends(require_role("MANAGER"))):
+def upgrade_preview(data: UpgradePreview, user: dict = Depends(require_role("OWNER"))):
     """Compute the upgrade breakdown without actually performing it."""
     with get_db() as conn:
         old_pkg = conn.execute("SELECT * FROM packages WHERE id = ? AND is_active = 1", (data.old_package_id,)).fetchone()
@@ -136,7 +136,7 @@ def upgrade_preview(data: UpgradePreview, user: dict = Depends(require_role("MAN
 
 
 @router.post("/execute", status_code=201)
-def upgrade_execute(data: UpgradeExecute, user: dict = Depends(require_role("MANAGER"))):
+def upgrade_execute(data: UpgradeExecute, user: dict = Depends(require_role("OWNER"))):
     """Perform the upgrade: deactivate old, create new with top-up amount."""
     with get_db() as conn:
         old_pkg = conn.execute("SELECT * FROM packages WHERE id = ? AND is_active = 1", (data.old_package_id,)).fetchone()
@@ -218,9 +218,9 @@ def upgrade_page():
     if not get_current_location_id():
         ui.navigate.to("/select-location")
         return
-    role = app.storage.user.get("role", "STAFF")
-    if role not in ("MANAGER", "OWNER"):
-        ui.notify("Chỉ MANAGER trở lên mới được nâng cấp gói", type="negative")
+    role = app.storage.user.get("role", "TEACHER")
+    if role not in ("OWNER", "ADMIN"):
+        ui.notify("Chỉ OWNER trở lên mới được nâng cấp gói", type="negative")
         ui.navigate.to("/dashboard")
         return
     render()
@@ -379,9 +379,34 @@ def render():
                 ui.label(f"💰 Tiền bù phải trả: {top_up:,.0f}đ").classes("text-xl font-bold text-red-600")
             ui.button(
                 "THỰC HIỆN NÂNG CẤP",
-                on_click=lambda: do_upgrade(pid, tid),
+                on_click=lambda: open_confirm_upgrade(pid, tid, old_pkg["name"], new_tpl["name"], top_up),
                 icon="upgrade",
             ).props("unelevated").classes("w-full btn-primary text-lg py-2 mb-2")
+
+    with ui.dialog() as confirm_upgrade_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=confirm_upgrade_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("Xác nhận nâng cấp gói").classes("text-xl font-bold mb-2 pr-8")
+        confirm_upgrade_text = ui.label().classes("text-sm text-gray-600 mb-4")
+        confirm_upgrade_pid = ui.number("confirm_upgrade_pid").props("hidden")
+        confirm_upgrade_tid = ui.number("confirm_upgrade_tid").props("hidden")
+
+        def confirm_upgrade():
+            confirm_upgrade_dialog.close()
+            do_upgrade(int(confirm_upgrade_pid.value or 0), int(confirm_upgrade_tid.value or 0))
+
+        with ui.row().classes("gap-2 justify-end w-full"):
+            ui.button("Hủy", on_click=confirm_upgrade_dialog.close, icon="close").props("outlined")
+            ui.button("Nâng cấp", on_click=confirm_upgrade, icon="upgrade").props("unelevated color=negative")
+
+    def open_confirm_upgrade(pid, tid, old_name, new_name, top_up):
+        confirm_upgrade_pid.value = int(pid)
+        confirm_upgrade_tid.value = int(tid)
+        confirm_upgrade_text.set_text(
+            f"Bạn có chắc muốn nâng cấp từ gói '{old_name}' sang '{new_name}'? "
+            f"Gói cũ sẽ bị vô hiệu hóa và tạo gói mới. Tiền bù: {top_up:,.0f}đ."
+        )
+        confirm_upgrade_dialog.open()
 
     def do_upgrade(pid, tid):
         cid = customer_select.value

@@ -59,7 +59,7 @@ def list_rates(user: dict = Depends(get_current_user)):
 
 
 @router.post("/rates", status_code=201)
-def create_rate(data: PTRateCreate, user: dict = Depends(require_role("MANAGER"))):
+def create_rate(data: PTRateCreate, user: dict = Depends(require_role("OWNER"))):
     loc_id = get_current_location_id()
     if not loc_id:
         raise HTTPException(status_code=400, detail="Chưa chọn cơ sở")
@@ -84,7 +84,7 @@ def create_rate(data: PTRateCreate, user: dict = Depends(require_role("MANAGER")
 
 
 @router.put("/rates/{rate_id}")
-def update_rate(rate_id: int, data: PTRateUpdate, user: dict = Depends(require_role("MANAGER"))):
+def update_rate(rate_id: int, data: PTRateUpdate, user: dict = Depends(require_role("OWNER"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM pt_rates WHERE id = ?", (rate_id,)).fetchone()
         if row is None:
@@ -441,9 +441,9 @@ def render_sessions_tab(loc_id: int):
 
 
 def render_rates_tab(loc_id: int):
-    role = app.storage.user.get("role", "STAFF")
-    if role not in ("MANAGER", "OWNER"):
-        ui.label("Chỉ MANAGER trở lên mới quản lý được bảng giá PT.").classes("text-orange-600 italic")
+    role = app.storage.user.get("role", "TEACHER")
+    if role not in ("OWNER", "ADMIN"):
+        ui.label("Chỉ OWNER trở lên mới quản lý được bảng giá PT.").classes("text-orange-600 italic")
         return
 
     ui.label("💰 Bảng giá PT").classes("section-header")

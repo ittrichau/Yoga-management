@@ -42,7 +42,7 @@ def list_ingredients(location_id: int | None = None, user: dict = Depends(get_cu
 
 
 @router.post("", status_code=201)
-def create_ingredient(data: IngredientCreate, user: dict = Depends(require_role("MANAGER"))):
+def create_ingredient(data: IngredientCreate, user: dict = Depends(require_role("OWNER"))):
     location_id = data.location_id or user.get("location_id")
     if not location_id:
         raise HTTPException(status_code=400, detail="Chưa chọn chi nhánh")
@@ -63,7 +63,7 @@ def create_ingredient(data: IngredientCreate, user: dict = Depends(require_role(
 
 
 @router.put("/{ingredient_id}")
-def update_ingredient(ingredient_id: int, data: IngredientUpdate, user: dict = Depends(require_role("MANAGER"))):
+def update_ingredient(ingredient_id: int, data: IngredientUpdate, user: dict = Depends(require_role("OWNER"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
         if row is None:
@@ -88,7 +88,7 @@ def update_ingredient(ingredient_id: int, data: IngredientUpdate, user: dict = D
 
 
 @router.delete("/{ingredient_id}")
-def soft_delete_ingredient(ingredient_id: int, user: dict = Depends(require_role("OWNER"))):
+def soft_delete_ingredient(ingredient_id: int, user: dict = Depends(require_role("ADMIN"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM ingredients WHERE id = ? AND is_active = 1", (ingredient_id,)).fetchone()
         if row is None:
@@ -106,7 +106,7 @@ def soft_delete_ingredient(ingredient_id: int, user: dict = Depends(require_role
 
 
 @router.post("/{ingredient_id}/adjust")
-def adjust_stock(ingredient_id: int, data: StockAdjust, user: dict = Depends(require_role("OWNER"))):
+def adjust_stock(ingredient_id: int, data: StockAdjust, user: dict = Depends(require_role("ADMIN"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM ingredients WHERE id = ? AND is_active = 1", (ingredient_id,)).fetchone()
         if row is None:
@@ -169,7 +169,7 @@ def ingredients_page():
 
 
 def render():
-    role = app.storage.user.get("role", "STAFF")
+    role = app.storage.user.get("role", "TEACHER")
     loc_id = get_current_location_id()
 
     # Helper defined first so on_click callbacks can reference it.
@@ -213,7 +213,7 @@ def render():
         with ui.element("div").classes("search-bar"):
             search_input = ui.input("Tìm kiếm nguyên liệu").props("outlined clearable dense").classes("flex-grow")
             ui.button("Tìm", icon="search", on_click=refresh).props("outlined")
-            if role in ("MANAGER", "OWNER"):
+            if role in ("OWNER", "ADMIN"):
                 ui.button("Thêm nguyên liệu", icon="add", on_click=lambda: create_dialog.open()).props("unelevated").classes("btn-success")
 
         ing_table = ui.table(
@@ -299,7 +299,7 @@ def render():
                 ui.button("Đóng", on_click=edit_dialog.close, icon="close").props("outlined")
                 ui.button("Lưu", on_click=handle_edit, icon="save").props("unelevated").classes("btn-primary")
 
-        # Adjust stock dialog (OWNER only)
+        # Adjust stock dialog (ADMIN only)
         with ui.dialog() as adjust_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
             with ui.element("div").classes("absolute top-2 right-2"):
                 ui.button(icon="close", on_click=adjust_dialog.close).props("flat round dense").tooltip("Đóng")
@@ -366,13 +366,13 @@ def render():
             adjust_dialog.open()
 
         with ui.row().classes("gap-2 mb-4"):
-            if role in ("MANAGER", "OWNER"):
+            if role in ("OWNER", "ADMIN"):
                 ui.button("Thêm nguyên liệu", on_click=create_dialog.open, icon="add").props("unelevated").classes("btn-success")
             ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
 
         search_input.on("keyup.enter", refresh)
 
-        if role == "OWNER":
+        if role == "ADMIN":
             ing_table.add_slot(
                 "body-cell-action",
                 """
@@ -389,7 +389,7 @@ def render():
                 </q-td>
                 """,
             )
-        elif role == "MANAGER":
+        elif role == "OWNER":
             ing_table.add_slot(
                 "body-cell-action",
                 """
@@ -409,6 +409,26 @@ def render():
                 </q-td>
                 """,
             )
+        with ui.dialog() as confirm_delete_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=confirm_delete_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Xác nhận vô hiệu hóa").classes("text-xl font-bold mb-2 pr-8")
+            confirm_delete_text = ui.label().classes("text-sm text-gray-600 mb-4")
+            confirm_delete_id = ui.number("confirm_delete_id").props("hidden")
+
+            def confirm_soft_delete_ingredient():
+                confirm_delete_dialog.close()
+                soft_delete_ingredient_ui(int(confirm_delete_id.value or 0))
+
+            with ui.row().classes("gap-2 justify-end w-full"):
+                ui.button("Hủy", on_click=confirm_delete_dialog.close, icon="close").props("outlined")
+                ui.button("Vô hiệu hóa", on_click=confirm_soft_delete_ingredient, icon="delete").props("unelevated color=negative")
+
+        def open_confirm_delete_ingredient(ingredient_id):
+            confirm_delete_id.value = int(ingredient_id)
+            confirm_delete_text.set_text("Bạn có chắc muốn vô hiệu hóa nguyên liệu này? Thao tác này sẽ ẩn nguyên liệu khỏi danh sách sử dụng.")
+            confirm_delete_dialog.open()
+
         def soft_delete_ingredient_ui(ingredient_id):
             try:
                 with get_db() as conn:
@@ -433,6 +453,6 @@ def render():
 
         ing_table.on("edit_ing", lambda e: open_edit(e.args))
         ing_table.on("adjust_ing", lambda e: open_adjust(e.args))
-        ing_table.on("delete_ing", lambda e: soft_delete_ingredient_ui(e.args))
+        ing_table.on("delete_ing", lambda e: open_confirm_delete_ingredient(e.args))
 
         refresh()

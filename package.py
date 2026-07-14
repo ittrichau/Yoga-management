@@ -191,8 +191,8 @@ def get_customer_packages(customer_id: int, user: dict = Depends(get_current_use
 
 
 @router.put("/{package_id}/deactivate")
-def deactivate_package(package_id: int, user: dict = Depends(require_role("MANAGER"))):
-    """Deactivate a package (soft delete). MANAGER+."""
+def deactivate_package(package_id: int, user: dict = Depends(require_role("OWNER"))):
+    """Deactivate a package (soft delete). OWNER+."""
     with get_db() as conn:
         pkg = conn.execute("SELECT * FROM packages WHERE id = ?", (package_id,)).fetchone()
         if pkg is None:
@@ -225,7 +225,7 @@ def packages_page():
 
 def render():
     """Render the package management page."""
-    role = app.storage.user.get("role", "STAFF")
+    role = app.storage.user.get("role", "TEACHER")
     loc_id = get_current_location_id()
 
     # Helpers defined first so on_click callbacks can reference them.

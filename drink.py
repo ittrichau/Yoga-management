@@ -39,7 +39,7 @@ def list_drinks(location_id: int | None = None, user: dict = Depends(get_current
 
 
 @router.post("", status_code=201)
-def create_drink(data: DrinkCreate, user: dict = Depends(require_role("MANAGER"))):
+def create_drink(data: DrinkCreate, user: dict = Depends(require_role("OWNER"))):
     location_id = data.location_id or user.get("location_id")
     if not location_id:
         raise HTTPException(status_code=400, detail="Chưa chọn chi nhánh")
@@ -60,7 +60,7 @@ def create_drink(data: DrinkCreate, user: dict = Depends(require_role("MANAGER")
 
 
 @router.put("/{drink_id}")
-def update_drink(drink_id: int, data: DrinkUpdate, user: dict = Depends(require_role("MANAGER"))):
+def update_drink(drink_id: int, data: DrinkUpdate, user: dict = Depends(require_role("OWNER"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM drinks WHERE id = ?", (drink_id,)).fetchone()
         if row is None:
@@ -87,7 +87,7 @@ def update_drink(drink_id: int, data: DrinkUpdate, user: dict = Depends(require_
 
 
 @router.delete("/{drink_id}")
-def soft_delete_drink(drink_id: int, user: dict = Depends(require_role("OWNER"))):
+def soft_delete_drink(drink_id: int, user: dict = Depends(require_role("ADMIN"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM drinks WHERE id = ? AND is_active = 1", (drink_id,)).fetchone()
         if row is None:
@@ -116,7 +116,7 @@ def drinks_page():
 
 
 def render():
-    role = app.storage.user.get("role", "STAFF")
+    role = app.storage.user.get("role", "TEACHER")
     loc_id = get_current_location_id()
 
     # Helper functions defined first so on_click callbacks can reference them.
@@ -155,7 +155,7 @@ def render():
         with ui.element("div").classes("search-bar"):
             search_input = ui.input("Tìm kiếm đồ uống").props("outlined clearable dense").classes("flex-grow")
             ui.button("Tìm", icon="search", on_click=refresh).props("outlined")
-            if role in ("MANAGER", "OWNER"):
+            if role in ("OWNER", "ADMIN"):
                 ui.button("Thêm đồ uống", icon="add", on_click=lambda: create_dialog.open()).props("unelevated").classes("btn-success")
 
         drink_table = ui.table(
@@ -255,14 +255,14 @@ def render():
             edit_err.set_text("")
             edit_dialog.open()
 
-        if role in ("MANAGER", "OWNER"):
+        if role in ("OWNER", "ADMIN"):
             with ui.row().classes("gap-2 mb-4"):
                 ui.button("Thêm đồ uống", on_click=create_dialog.open, icon="add").props("unelevated").classes("btn-success")
                 ui.button("Làm mới", on_click=refresh, icon="refresh").props("outlined")
 
         search_input.on("keyup.enter", refresh)
 
-        if role == "OWNER":
+        if role == "ADMIN":
             drink_table.add_slot(
                 "body-cell-action",
                 """
@@ -276,7 +276,7 @@ def render():
                 </q-td>
                 """,
             )
-        elif role == "MANAGER":
+        elif role == "OWNER":
             drink_table.add_slot(
                 "body-cell-action",
                 """
@@ -296,6 +296,26 @@ def render():
                 </q-td>
                 """,
             )
+
+        with ui.dialog() as confirm_delete_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=confirm_delete_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Xác nhận vô hiệu hóa").classes("text-xl font-bold mb-2 pr-8")
+            confirm_delete_text = ui.label().classes("text-sm text-gray-600 mb-4")
+            confirm_delete_id = ui.number("confirm_delete_id").props("hidden")
+
+            def confirm_soft_delete_drink():
+                confirm_delete_dialog.close()
+                soft_delete_drink_ui(int(confirm_delete_id.value or 0))
+
+            with ui.row().classes("gap-2 justify-end w-full"):
+                ui.button("Hủy", on_click=confirm_delete_dialog.close, icon="close").props("outlined")
+                ui.button("Vô hiệu hóa", on_click=confirm_soft_delete_drink, icon="delete").props("unelevated color=negative")
+
+        def open_confirm_delete_drink(drink_id):
+            confirm_delete_id.value = int(drink_id)
+            confirm_delete_text.set_text("Bạn có chắc muốn vô hiệu hóa đồ uống này? Thao tác này sẽ ẩn đồ uống khỏi danh sách sử dụng.")
+            confirm_delete_dialog.open()
 
         def soft_delete_drink_ui(drink_id):
             try:
@@ -317,6 +337,6 @@ def render():
                 ui.notify(f"Lỗi: {exc}", type="negative")
 
         drink_table.on("edit_drink", lambda e: open_edit(e.args))
-        drink_table.on("delete_drink", lambda e: soft_delete_drink_ui(e.args))
+        drink_table.on("delete_drink", lambda e: open_confirm_delete_drink(e.args))
 
         refresh()

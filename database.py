@@ -132,7 +132,7 @@ def _init_pg_schema(db):
         username VARCHAR(255) UNIQUE NOT NULL,
         hashed_password TEXT NOT NULL,
         full_name VARCHAR(255) DEFAULT '',
-        role VARCHAR(50) NOT NULL DEFAULT 'STAFF' CHECK(role IN ('STAFF','MANAGER','OWNER')),
+        role VARCHAR(50) NOT NULL DEFAULT 'TEACHER' CHECK(role IN ('TEACHER','OWNER','ADMIN')),
         is_active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
         updated_at TEXT
@@ -352,7 +352,7 @@ def _init_sqlite_schema(db):
         username TEXT UNIQUE NOT NULL,
         hashed_password TEXT NOT NULL,
         full_name TEXT DEFAULT '',
-        role TEXT NOT NULL DEFAULT 'STAFF' CHECK(role IN ('STAFF','MANAGER','OWNER')),
+        role TEXT NOT NULL DEFAULT 'TEACHER' CHECK(role IN ('TEACHER','OWNER','ADMIN')),
         is_active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
         updated_at TEXT
@@ -583,7 +583,7 @@ def seed_defaults():
             hashed = _bcrypt.hashpw(b"admin123", _bcrypt.gensalt()).decode("utf-8")
             db.execute(
                 "INSERT INTO users (username, hashed_password, full_name, role) VALUES (?, ?, ?, ?)",
-                ("admin", hashed, "Admin", "OWNER"),
+                ("admin", hashed, "Admin", "ADMIN"),
             )
             admin_id = db.lastrowid
         else:
@@ -608,7 +608,7 @@ def seed_defaults():
             hashed = _bcrypt.hashpw(b"123456", _bcrypt.gensalt()).decode("utf-8")
             db.execute(
                 "INSERT INTO users (username, hashed_password, full_name, role) VALUES (?, ?, ?, ?)",
-                ("giangvien1", hashed, "Giáo viên 1", "STAFF"),
+                ("giangvien1", hashed, "Giáo viên 1", "TEACHER"),
             )
             staff_id = db.lastrowid
         else:
@@ -768,8 +768,12 @@ def _seed_pt_rates(db):
 # Migration: add new columns to existing tables
 # ---------------------------------------------------------------------------
 def migrate_schema():
-    """Add new columns for the package/PT/product upgrade. Safe to run multiple times."""
+    """Add new columns/backfills for ongoing upgrades. Safe to run multiple times."""
     with get_db() as db:
+        db.execute("UPDATE users SET role = 'TEACHER' WHERE role = 'STAFF'")
+        db.execute("UPDATE users SET role = 'OWNER' WHERE role = 'MANAGER'")
+        db.execute("UPDATE users SET role = 'ADMIN' WHERE role = 'OWNER' AND username = 'admin'")
+
         if USE_PG:
             db.execute("ALTER TABLE packages ADD COLUMN IF NOT EXISTS package_template_id INTEGER")
             db.execute("ALTER TABLE packages ADD COLUMN IF NOT EXISTS duration_days INTEGER DEFAULT 0")

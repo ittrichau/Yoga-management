@@ -134,7 +134,7 @@ def create_customer(data: CustomerCreate, user: dict = Depends(get_current_user)
 
 
 @router.put("/{customer_id}")
-def update_customer(customer_id: int, data: CustomerUpdate, user: dict = Depends(require_role("MANAGER"))):
+def update_customer(customer_id: int, data: CustomerUpdate, user: dict = Depends(require_role("OWNER"))):
     current_location_id = get_current_location_id()
     if not current_location_id:
         raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở")

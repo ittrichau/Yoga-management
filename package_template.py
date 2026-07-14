@@ -51,7 +51,7 @@ class PackageTemplateUpdate(BaseModel):
 # API endpoints
 # ---------------------------------------------------------------------------
 @router.get("")
-def list_templates(user: dict = Depends(require_role("STAFF"))):
+def list_templates(user: dict = Depends(require_role("TEACHER"))):
     loc_id = get_current_location_id()
     with get_db() as conn:
         rows = conn.execute(
@@ -62,7 +62,7 @@ def list_templates(user: dict = Depends(require_role("STAFF"))):
 
 
 @router.post("", status_code=201)
-def create_template(data: PackageTemplateCreate, user: dict = Depends(require_role("MANAGER"))):
+def create_template(data: PackageTemplateCreate, user: dict = Depends(require_role("OWNER"))):
     if data.package_type not in TYPE_LABELS:
         raise HTTPException(status_code=400, detail="Loại gói không hợp lệ")
     if not data.name.strip():
@@ -103,7 +103,7 @@ def create_template(data: PackageTemplateCreate, user: dict = Depends(require_ro
 
 
 @router.put("/{template_id}")
-def update_template(template_id: int, data: PackageTemplateUpdate, user: dict = Depends(require_role("MANAGER"))):
+def update_template(template_id: int, data: PackageTemplateUpdate, user: dict = Depends(require_role("OWNER"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM package_templates WHERE id = ?", (template_id,)).fetchone()
         if row is None:
@@ -137,7 +137,7 @@ def update_template(template_id: int, data: PackageTemplateUpdate, user: dict = 
 
 
 @router.delete("/{template_id}")
-def deactivate_template(template_id: int, user: dict = Depends(require_role("MANAGER"))):
+def deactivate_template(template_id: int, user: dict = Depends(require_role("OWNER"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM package_templates WHERE id = ?", (template_id,)).fetchone()
         if row is None:
@@ -167,7 +167,7 @@ def package_templates_page():
 
 
 def render():
-    role = app.storage.user.get("role", "STAFF")
+    role = app.storage.user.get("role", "TEACHER")
     loc_id = get_current_location_id()
 
     # Page title
@@ -350,7 +350,7 @@ def render():
                     ui.label("Danh sách gói tập").classes("font-bold text-lg")
                     ui.label("Sử dụng để gán nhanh cho khách hàng").classes("text-sm text-gray-500")
                 with ui.row().classes("gap-2"):
-                    if role in ("MANAGER", "OWNER"):
+                    if role in ("OWNER", "ADMIN"):
                         ui.button(
                             "Tạo mẫu gói",
                             on_click=lambda: (reset_create_form(), create_dialog.open()),
@@ -377,6 +377,26 @@ def render():
         e_error.set_text("")
         edit_dialog.open()
 
+    with ui.dialog() as confirm_deactivate_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
+        with ui.element("div").classes("absolute top-2 right-2"):
+            ui.button(icon="close", on_click=confirm_deactivate_dialog.close).props("flat round dense").tooltip("Đóng")
+        ui.label("Xác nhận vô hiệu hóa").classes("text-xl font-bold mb-2 pr-8")
+        confirm_deactivate_text = ui.label().classes("text-sm text-gray-600 mb-4")
+        confirm_deactivate_id = ui.number("confirm_deactivate_id").props("hidden")
+
+        def confirm_deactivate():
+            confirm_deactivate_dialog.close()
+            deactivate(int(confirm_deactivate_id.value or 0))
+
+        with ui.row().classes("gap-2 justify-end w-full"):
+            ui.button("Hủy", on_click=confirm_deactivate_dialog.close, icon="close").props("outlined")
+            ui.button("Vô hiệu hóa", on_click=confirm_deactivate, icon="block").props("unelevated color=negative")
+
+    def open_confirm_deactivate(template_id):
+        confirm_deactivate_id.value = int(template_id)
+        confirm_deactivate_text.set_text("Bạn có chắc muốn vô hiệu hóa mẫu gói này? Mẫu gói sẽ không còn dùng để gán nhanh cho khách hàng.")
+        confirm_deactivate_dialog.open()
+
     def deactivate(template_id):
         try:
             with get_db() as conn:
@@ -392,7 +412,7 @@ def render():
         refresh()
         ui.notify("Đã vô hiệu hóa mẫu gói", type="positive")
 
-    if role in ("MANAGER", "OWNER"):
+    if role in ("OWNER", "ADMIN"):
         template_table.add_slot(
             "body-cell-action",
             """
@@ -409,6 +429,6 @@ def render():
             """,
         )
         template_table.on("edit_tpl", lambda e: open_edit(int(e.args)))
-        template_table.on("deactivate_tpl", lambda e: deactivate(int(e.args)))
+        template_table.on("deactivate_tpl", lambda e: open_confirm_deactivate(int(e.args)))
 
     refresh()

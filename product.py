@@ -78,7 +78,7 @@ def get_low_stock_products(location_id: int | None = None, user: dict = Depends(
 
 
 @router.post("", status_code=201)
-def create_product(data: ProductCreate, user: dict = Depends(require_role("MANAGER"))):
+def create_product(data: ProductCreate, user: dict = Depends(require_role("OWNER"))):
     loc_id = get_current_location_id()
     if not loc_id:
         raise HTTPException(status_code=400, detail="Chưa chọn chi nhánh")
@@ -101,7 +101,7 @@ def create_product(data: ProductCreate, user: dict = Depends(require_role("MANAG
 
 
 @router.put("/{product_id}")
-def update_product(product_id: int, data: ProductUpdate, user: dict = Depends(require_role("MANAGER"))):
+def update_product(product_id: int, data: ProductUpdate, user: dict = Depends(require_role("OWNER"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
         if row is None:
@@ -126,7 +126,7 @@ def update_product(product_id: int, data: ProductUpdate, user: dict = Depends(re
 
 
 @router.delete("/{product_id}")
-def soft_delete_product(product_id: int, user: dict = Depends(require_role("OWNER"))):
+def soft_delete_product(product_id: int, user: dict = Depends(require_role("ADMIN"))):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM products WHERE id = ? AND is_active = 1", (product_id,)).fetchone()
         if row is None:
@@ -155,7 +155,7 @@ def products_page():
 
 
 def render():
-    role = app.storage.user.get("role", "STAFF")
+    role = app.storage.user.get("role", "TEACHER")
     loc_id = get_current_location_id()
 
     def refresh():
@@ -203,7 +203,7 @@ def render():
                 label="Loại",
             ).props("outlined dense").classes("w-40")
             ui.button("Tìm", icon="search", on_click=refresh).props("outlined")
-            if role in ("MANAGER", "OWNER"):
+            if role in ("OWNER", "ADMIN"):
                 ui.button("Thêm sản phẩm", icon="add", on_click=lambda: create_dialog.open()).props("unelevated").classes("btn-success")
 
         product_table = ui.table(
@@ -317,6 +317,26 @@ def render():
             edit_err.set_text("")
             edit_dialog.open()
 
+        with ui.dialog() as confirm_delete_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=confirm_delete_dialog.close).props("flat round dense").tooltip("Đóng")
+            ui.label("Xác nhận vô hiệu hóa").classes("text-xl font-bold mb-2 pr-8")
+            confirm_delete_text = ui.label().classes("text-sm text-gray-600 mb-4")
+            confirm_delete_id = ui.number("confirm_delete_id").props("hidden")
+
+            def confirm_soft_delete_product():
+                confirm_delete_dialog.close()
+                soft_delete_product_ui(int(confirm_delete_id.value or 0))
+
+            with ui.row().classes("gap-2 justify-end w-full"):
+                ui.button("Hủy", on_click=confirm_delete_dialog.close, icon="close").props("outlined")
+                ui.button("Vô hiệu hóa", on_click=confirm_soft_delete_product, icon="delete").props("unelevated color=negative")
+
+        def open_confirm_delete_product(product_id):
+            confirm_delete_id.value = int(product_id)
+            confirm_delete_text.set_text("Bạn có chắc muốn vô hiệu hóa sản phẩm này? Thao tác này sẽ ẩn sản phẩm khỏi danh sách sử dụng.")
+            confirm_delete_dialog.open()
+
         def soft_delete_product_ui(product_id):
             try:
                 with get_db() as conn:
@@ -355,7 +375,7 @@ def render():
         )
 
         # Action buttons based on role
-        if role == "OWNER":
+        if role == "ADMIN":
             product_table.add_slot(
                 "body-cell-action",
                 """
@@ -382,7 +402,7 @@ def render():
             )
 
         product_table.on("edit_product", lambda e: open_edit(e.args))
-        product_table.on("delete_product", lambda e: soft_delete_product_ui(e.args))
+        product_table.on("delete_product", lambda e: open_confirm_delete_product(e.args))
 
         search_input.on("keyup.enter", refresh)
         type_select.on("update:model-value", lambda e: refresh())

@@ -8,16 +8,20 @@ alwaysApply: true
 ## Status Snapshot
 
 - Last updated: 2026-07-14
-- Current focus: UI polish, popup close buttons, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; global page top padding has been tightened so pages sit closer to the navbar.
+- Current focus: UI polish, confirmation dialogs for destructive actions, validation, search/filter, and backlog refinement.
+- App status: Full core system completed; destructive delete/remove/deactivate actions now require confirmation dialogs before execution.
 
 ## Active Task
 
 - Task: None.
-- Next recommended task: Verify all main pages for the tightened top spacing, then verify `/sales` cart checkout flow locally.
+- Next recommended task: Verify destructive-action confirmation dialogs locally across `/drinks`, `/ingredients`, `/products`, `/package-templates`, `/users`, `/locations`, `/sales`, and `/packages/upgrade`.
 
 ## Recently Completed
 
+- Audited delete/remove/deactivate flows and added confirmation dialogs before destructive UI actions: drink/ingredient/product/package template deactivation, user/location status changes, cart item removal on `/sales`, and package upgrade old-package deactivation.
+- Updated user creation so adding a new user no longer requires manually selecting cơ sở; when left blank, the account is automatically assigned to all active locations for rotating teachers across both locations.
+
+- Updated user creation so new users can be saved without manually selecting a cơ sở; when left blank, the account is automatically assigned to all active locations, matching rotating-teacher workflow.
 - Tightened global page top spacing again by reducing `.page-container` top padding and the `/sales` page-specific top padding so pages sit closer to the navbar.
 - Redesigned `/sales` transaction flow into a cart checkout: staff can add multiple drinks/products with quantities, see totals, remove cart rows, and checkout all items in one action while keeping transaction rows, stock/package updates, and audit log.
 - Removed/rerouted redundant `/sales` explanatory notes, including the long customer audit-trace hint and product-sale instruction text.
@@ -40,13 +44,9 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Verify all main pages for the tightened top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
-2. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
-3. Check/add popup close icon for remaining files:
-   - `package.py`
-   - `auth.py`
-   - `transaction.py`
-   - `product.py`
+1. Verify destructive-action confirmation dialogs locally across `/drinks`, `/ingredients`, `/products`, `/package-templates`, `/users`, `/locations`, `/sales`, and `/packages/upgrade`.
+2. Verify all main pages for the tightened top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+3. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
 4. Improve `/packages` search/filter if still missing.
 5. Improve validation UI and Vietnamese success/error messages.
 6. Consider seeding a `Khách vãng lai` customer per location for walk-in retail sales while preserving audit traceability.
@@ -57,6 +57,12 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-14: Ran `python -m py_compile auth.py drink.py ingredient.py product.py package_template.py transaction.py package_upgrade.py package.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for destructive-action confirmation dialog updates.
+- 2026-07-14: Ran `python -m py_compile auth.py database.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for optional/default-all-location user creation and role label updates.
+- 2026-07-14: Ran `python -m py_compile auth.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for the optional user-location assignment change.
 - 2026-07-14: Ran `git diff --check`.
   - Command completed successfully with no whitespace errors reported for the CSS top-spacing changes.
 - 2026-07-14: Ran `python -m py_compile transaction.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
