@@ -13,12 +13,12 @@ alwaysApply: true
 
 ## Active Task
 
-- Task: Use the small Bảo Ngọc logo only in the shared navigation/sidebar header area.
-- Next recommended task: Verify shared header locally across desktop/mobile to confirm the new small logo stays clear and does not overlap the menu/location/user actions.
+- Task: Use the small Bảo Ngọc logo only in the shared navigation/sidebar menu drawer.
+- Next recommended task: Verify login, header, and main pages still use the old logo while the drawer/menu uses the small logo.
 
 ## Recently Completed
 
-- Switched the shared navigation/sidebar header brand image in `auth.py` to `static/bao_ngoc_logo_small.png` only, leaving other branding usages unchanged.
+- Split logo usage in `auth.py` so login and the shared top/header use `static/bao_ngoc_logo.png`, while only the drawer/menu uses `static/bao_ngoc_logo_small.png`.
 - Enlarged the centered Bảo Ngọc header logo with responsive CSS width rules for desktop/mobile while keeping the existing 56px header height and centered alignment.
 - Removed the large blank top gap below the shared header across pages by re-tuning NiceGUI/Quasar page-container/header spacing and testing the shared layout, including the `/sales` page-specific container.
 - Renamed the dashboard UI from `Bảng điều khiển` to `Trang chính`, updated drawer/mobile nav labels, moved the top menu button to the left, and centered the Bảo Ngọc logo in the header while keeping the existing header height.

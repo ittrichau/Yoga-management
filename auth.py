@@ -449,7 +449,8 @@ def render_access_denied(message: str) -> None:
 
 APP_BRAND_NAME = "Fitness and yoga Bảo Ngọc"
 APP_BRAND_SHORT_NAME = "Bảo Ngọc"
-APP_LOGO_PATH = "/static/bao_ngoc_logo_small.png"
+APP_LOGO_PATH = "/static/bao_ngoc_logo.png"
+APP_DRAWER_LOGO_PATH = "/static/bao_ngoc_logo_small.png"
 
 
 def render_brand_logo(classes: str = "brand-logo") -> None:
@@ -552,7 +553,7 @@ def render_navbar():
     with menu_drawer:
         with ui.column().classes("w-full gap-1 p-3"):
             with ui.row().classes("items-center justify-center px-2 py-2"):
-                render_brand_logo("drawer-brand-logo")
+                ui.image(APP_DRAWER_LOGO_PATH).classes("drawer-brand-logo").props('alt="Fitness and yoga Bảo Ngọc"')
             ui.label(f"📍 {loc_name}").classes("location-badge active w-full justify-center mb-2")
             ui.separator()
 
