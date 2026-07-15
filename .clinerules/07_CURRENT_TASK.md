@@ -8,16 +8,17 @@ alwaysApply: true
 ## Status Snapshot
 
 - Last updated: 2026-07-14
-- Current focus: UI polish, confirmation dialogs for destructive actions, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; destructive delete/remove/deactivate actions now require confirmation dialogs before execution.
+- Current focus: UI polish, branding, confirmation dialogs for destructive actions, validation, search/filter, and backlog refinement.
+- App status: Full core system completed; web title and shared branding have been updated to Fitness and yoga Bảo Ngọc.
 
 ## Active Task
 
 - Task: None.
-- Next recommended task: Verify destructive-action confirmation dialogs locally across `/drinks`, `/ingredients`, `/products`, `/package-templates`, `/users`, `/locations`, `/sales`, and `/packages/upgrade`.
+- Next recommended task: Verify branding/logo display locally across login, select-location, navbar, drawer, and browser tab/favicon.
 
 ## Recently Completed
 
+- Updated browser title to `Fitness and yoga Bảo Ngọc`, set favicon to `/static/bao_ngoc_logo.png`, and replaced shared login/navbar/drawer branding with the Bảo Ngọc logo and name.
 - Audited delete/remove/deactivate flows and added confirmation dialogs before destructive UI actions: drink/ingredient/product/package template deactivation, user/location status changes, cart item removal on `/sales`, and package upgrade old-package deactivation.
 - Updated user creation so adding a new user no longer requires manually selecting cơ sở; when left blank, the account is automatically assigned to all active locations for rotating teachers across both locations.
 
@@ -44,19 +45,22 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Verify destructive-action confirmation dialogs locally across `/drinks`, `/ingredients`, `/products`, `/package-templates`, `/users`, `/locations`, `/sales`, and `/packages/upgrade`.
-2. Verify all main pages for the tightened top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
-3. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
-4. Improve `/packages` search/filter if still missing.
-5. Improve validation UI and Vietnamese success/error messages.
-6. Consider seeding a `Khách vãng lai` customer per location for walk-in retail sales while preserving audit traceability.
-7. Enrich seed data.
-8. Consider adding retail products into `package_items` for combo business cases.
-9. Add personal password change flow.
-10. Later backlog: dashboard charts, barcode/QR, print receipt, EN/VN, dark mode, optional sidebar.
+1. Verify branding/logo display locally across login, select-location, navbar, drawer, and browser tab/favicon.
+2. Verify destructive-action confirmation dialogs locally across `/drinks`, `/ingredients`, `/products`, `/package-templates`, `/users`, `/locations`, `/sales`, and `/packages/upgrade`.
+3. Verify all main pages for the tightened top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+4. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
+5. Improve `/packages` search/filter if still missing.
+6. Improve validation UI and Vietnamese success/error messages.
+7. Consider seeding a `Khách vãng lai` customer per location for walk-in retail sales while preserving audit traceability.
+8. Enrich seed data.
+9. Consider adding retail products into `package_items` for combo business cases.
+10. Add personal password change flow.
+11. Later backlog: dashboard charts, barcode/QR, print receipt, EN/VN, dark mode, optional sidebar.
 
 ## Verification Log
 
+- 2026-07-14: Ran `python -m py_compile main.py auth.py && git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for the branding/title/logo update.
 - 2026-07-14: Ran `python -m py_compile auth.py drink.py ingredient.py product.py package_template.py transaction.py package_upgrade.py package.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
   - Command completed successfully with no syntax or whitespace errors reported for destructive-action confirmation dialog updates.
 - 2026-07-14: Ran `python -m py_compile auth.py database.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.

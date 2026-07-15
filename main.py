@@ -70,8 +70,8 @@ if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
         host=host,
         port=port,
-        title="Quản lý Gym",
-        favicon="🏋️",
+        title="Fitness and yoga Bảo Ngọc",
+        favicon="/static/bao_ngoc_logo.png",
         storage_secret="gym-nutrition-secret-key-change-me",
         reload=False,
         show=False,

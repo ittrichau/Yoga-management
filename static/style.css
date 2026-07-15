@@ -590,6 +590,32 @@ header.q-header .text-white\/80 {
     font-size: 3rem;
     margin-bottom: 0.5rem;
 }
+
+.brand-logo,
+.header-brand-logo,
+.drawer-brand-logo,
+.login-logo {
+    object-fit: contain;
+}
+
+.login-logo {
+    width: 220px;
+    max-width: 80%;
+    height: auto;
+    margin: 0 auto 0.75rem;
+}
+
+.header-brand-logo {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+}
+
+.drawer-brand-logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+}
 .login-header .title {
     font-size: 1.5rem;
     font-weight: 700;

@@ -447,9 +447,18 @@ def render_access_denied(message: str) -> None:
             ui.label(message).classes("text-gray-600 mt-2")
 
 
+APP_BRAND_NAME = "Fitness and yoga Bảo Ngọc"
+APP_BRAND_SHORT_NAME = "Bảo Ngọc"
+APP_LOGO_PATH = "/static/bao_ngoc_logo.png"
+
+
+def render_brand_logo(classes: str = "brand-logo") -> None:
+    ui.image(APP_LOGO_PATH).classes(classes).props('alt="Fitness and yoga Bảo Ngọc"')
+
+
 def render_auth_header(icon: str, title: str, subtitle: str) -> None:
     with ui.element("div").classes("login-header"):
-        ui.label(icon).classes("logo")
+        render_brand_logo("login-logo")
         ui.label(title).classes("title")
         ui.label(subtitle).classes("subtitle")
 
@@ -541,7 +550,9 @@ def render_navbar():
     menu_drawer = ui.left_drawer(fixed=True, value=False).classes("app-drawer")
     with menu_drawer:
         with ui.column().classes("w-full gap-1 p-3"):
-            ui.label("Yoga Management").classes("text-lg font-bold px-2 py-2")
+            with ui.row().classes("items-center gap-2 px-2 py-2"):
+                render_brand_logo("drawer-brand-logo")
+                ui.label(APP_BRAND_NAME).classes("text-lg font-bold")
             ui.label(f"📍 {loc_name}").classes("location-badge active w-full justify-center mb-2")
             ui.separator()
 
@@ -604,10 +615,10 @@ def render_navbar():
     with ui.header(fixed=True).props("elevated").classes("app-header items-center justify-between"):
         with ui.row().classes("items-center gap-1 md:gap-3"):
             # Mobile brand (compact)
-            ui.label("🧘").classes("text-xl")
-            ui.label("YM").classes("text-base font-bold md:hidden")
+            render_brand_logo("header-brand-logo")
+            ui.label(APP_BRAND_SHORT_NAME).classes("text-base font-bold md:hidden")
             # Desktop brand
-            ui.label("Yoga Management").classes("hidden md:block text-lg font-bold")
+            ui.label(APP_BRAND_NAME).classes("hidden md:block text-lg font-bold")
 
         with ui.row().classes("items-center gap-1 md:gap-2"):
             # Location badge (hidden on very small screens, visible sm+)
@@ -671,7 +682,7 @@ def login_page():
 
     with ui.element("div").classes("login-center auth-shell"):
         with ui.card().classes("login-card auth-card p-8 md:p-10 w-full max-w-md"):
-            render_auth_header("🧘", "Yoga Management", "Đăng nhập để quản lý phòng tập")
+            render_auth_header("🧘", APP_BRAND_NAME, "Đăng nhập để quản lý phòng tập")
 
             username = ui.input("Tên đăng nhập").props("outlined dense").classes("w-full mb-3")
             password = ui.input("Mật khẩu", password=True, password_toggle_button=True).props("outlined dense").classes(
