@@ -958,6 +958,7 @@ body.login-body .q-page-container {
 @media (max-width: 767px) {
     .page-container {
         padding-bottom: 5.5rem !important;
+        padding-top: 0.5rem !important;
     }
     
     /* Make dialogs full-width on mobile */

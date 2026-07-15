@@ -9,16 +9,16 @@ alwaysApply: true
 
 - Last updated: 2026-07-15
 - Current focus: UI polish, spacing refinement, branding, confirmation dialogs for destructive actions, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; global top spacing has been tightened so pages sit directly below the shared header without the large blank area.
+- App status: Full core system completed; global top spacing is being re-tuned so pages sit directly below the shared header without the large blank area.
 
 ## Active Task
 
-- Task: Global top spacing polish completed.
+- Task: Global top spacing polish in progress.
 - Next recommended task: Verify all main pages locally across desktop/mobile to confirm content sits close to the header without being hidden or overlapping.
 
 ## Recently Completed
 
-- Removed the large blank top gap below the shared header across pages by overriding NiceGUI/Quasar page-container top offset globally and setting page top padding to zero, including the `/sales` page-specific container.
+- Removed the large blank top gap below the shared header across pages by re-tuning NiceGUI/Quasar page-container/header spacing and testing the shared layout, including the `/sales` page-specific container.
 - Renamed the dashboard UI from `Bảng điều khiển` to `Trang chính`, updated drawer/mobile nav labels, moved the top menu button to the left, and centered the Bảo Ngọc logo in the header while keeping the existing header height.
 - Removed the `Fitness and yoga Bảo Ngọc` text from the left drawer brand area and widened the shared logo presentation in the header and drawer.
 - Tightened `/login` CSS again: scoped the login body/page containers to `100dvh` with hidden overflow, reduced shell padding, and centered the logo/header via flex and Quasar image object-position rules to address residual scroll and logo/subtitle misalignment.
