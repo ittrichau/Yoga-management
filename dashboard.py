@@ -287,7 +287,7 @@ def render():
         # Page Title
         with ui.row().classes("items-center page-title w-full"):
             ui.label("📊").classes("text-2xl")
-            ui.label(f"Bảng điều khiển - {loc_name}")
+            ui.label(f"Trang chính - {loc_name}")
 
         # Stats Grid
         with ui.element("div").classes("dashboard-stat-grid"):

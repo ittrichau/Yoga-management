@@ -559,7 +559,7 @@ def render_navbar():
 
             ui.label("Vận hành").classes("drawer-section-label")
             menu_items = [
-                ("dashboard", "Bảng điều khiển", "/dashboard"),
+                ("dashboard", "Trang chính", "/dashboard"),
                 ("groups", "Khách hàng", "/customers"),
                 ("check_circle", "Check-in", "/checkin"),
                 ("point_of_sale", "Bán hàng", "/sales"),
@@ -612,14 +612,14 @@ def render_navbar():
                 "drawer-nav-btn w-full text-red-600"
             )
 
-    # ═══ TOP HEADER (desktop: full; mobile: brand + menu + logout) ═══
+    # ═══ TOP HEADER (desktop: full; mobile: centered logo + left menu) ═══
     with ui.header(fixed=True).props("elevated").classes("app-header items-center justify-between"):
-        with ui.row().classes("items-center gap-1 md:gap-3"):
-            # Mobile brand (compact)
+        with ui.row().classes("items-center gap-1 md:gap-2"):
+            # Drawer menu trigger
+            ui.button(icon="menu", on_click=menu_drawer.toggle).props("flat round dense").classes("touch-target").tooltip("Menu")
+
+        with ui.element("div").classes("header-brand-center"):
             render_brand_logo("header-brand-logo")
-            ui.label(APP_BRAND_SHORT_NAME).classes("text-base font-bold md:hidden")
-            # Desktop brand
-            ui.label(APP_BRAND_NAME).classes("hidden md:block text-lg font-bold")
 
         with ui.row().classes("items-center gap-1 md:gap-2"):
             # Location badge (hidden on very small screens, visible sm+)
@@ -648,16 +648,13 @@ def render_navbar():
                     "flat dense"
                 )
 
-            # Drawer menu trigger
-            ui.button(icon="menu", on_click=menu_drawer.toggle).props("flat round dense").classes("touch-target").tooltip("Menu")
-
             # Desktop logout
             ui.button(icon="logout", on_click=logout).props("flat round dense").tooltip("Đăng xuất").classes("hidden md:inline-flex")
 
     # ═══ MOBILE BOTTOM NAVIGATION BAR ═══
     with ui.footer().classes("md:hidden").props("bordered").style("background: white !important"):
         with ui.row().classes("w-full justify-around items-center py-1"):
-            _mb_btn("📊", "Tổng quan", "/dashboard")
+            _mb_btn("📊", "Trang chính", "/dashboard")
             _mb_btn("💰", "Bán hàng", "/sales")
             _mb_btn("🟡", "Check-in", "/checkin")
             _mb_btn("👥", "Khách", "/customers")

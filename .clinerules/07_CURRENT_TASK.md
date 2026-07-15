@@ -9,15 +9,16 @@ alwaysApply: true
 
 - Last updated: 2026-07-15
 - Current focus: UI polish, branding, confirmation dialogs for destructive actions, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; login page branding has been tightened again to center logo/subtitle more reliably and prevent login-page scroll.
+- App status: Full core system completed; dashboard has been renamed to Trang chính and the shared header now uses a left-side menu button with the logo centered inside the existing header height.
 
 ## Active Task
 
 - Task: None.
-- Next recommended task: Verify login page layout locally across desktop/mobile heights, then verify shared branding across select-location, navbar, drawer, and browser tab/favicon.
+- Next recommended task: Verify the shared header locally across desktop/mobile: menu button on the left, logo centered and as large as possible without changing header height, and dashboard title shown as Trang chính.
 
 ## Recently Completed
 
+- Renamed the dashboard UI from `Bảng điều khiển` to `Trang chính`, updated drawer/mobile nav labels, moved the top menu button to the left, and centered the Bảo Ngọc logo in the header while keeping the existing header height.
 - Tightened `/login` CSS again: scoped the login body/page containers to `100dvh` with hidden overflow, reduced shell padding, and centered the logo/header via flex and Quasar image object-position rules to address residual scroll and logo/subtitle misalignment.
 - Adjusted `/login` branding layout: removed the extra `Fitness and yoga Bảo Ngọc` title under the logo, centered logo/subtitle reliably, reduced card padding, moved the auth card upward, and switched login shell sizing to `100dvh` to reduce unnecessary vertical scroll.
 - Updated browser title to `Fitness and yoga Bảo Ngọc`, set favicon to `/static/bao_ngoc_logo.png`, and replaced shared login/navbar/drawer branding with the Bảo Ngọc logo and name.
@@ -47,20 +48,23 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Verify login page layout locally across desktop/mobile heights: logo/subtitle centered, no extra brand title under logo, auth card sits higher, and no unnecessary vertical scroll.
-2. Verify destructive-action confirmation dialogs locally across `/drinks`, `/ingredients`, `/products`, `/package-templates`, `/users`, `/locations`, `/sales`, and `/packages/upgrade`.
-3. Verify all main pages for the tightened top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
-4. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
-5. Improve `/packages` search/filter if still missing.
-6. Improve validation UI and Vietnamese success/error messages.
-7. Consider seeding a `Khách vãng lai` customer per location for walk-in retail sales while preserving audit traceability.
-8. Enrich seed data.
-9. Consider adding retail products into `package_items` for combo business cases.
-10. Add personal password change flow.
-11. Later backlog: dashboard charts, barcode/QR, print receipt, EN/VN, dark mode, optional sidebar.
+1. Verify shared header locally across desktop/mobile: left menu button, centered large logo, unchanged header height, and right-side location/user/actions not overlapping.
+2. Verify login page layout locally across desktop/mobile heights: logo/subtitle centered, no extra brand title under logo, auth card sits higher, and no unnecessary vertical scroll.
+3. Verify destructive-action confirmation dialogs locally across `/drinks`, `/ingredients`, `/products`, `/package-templates`, `/users`, `/locations`, `/sales`, and `/packages/upgrade`.
+4. Verify all main pages for the tightened top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
+5. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
+6. Improve `/packages` search/filter if still missing.
+7. Improve validation UI and Vietnamese success/error messages.
+8. Consider seeding a `Khách vãng lai` customer per location for walk-in retail sales while preserving audit traceability.
+9. Enrich seed data.
+10. Consider adding retail products into `package_items` for combo business cases.
+11. Add personal password change flow.
+12. Later backlog: dashboard charts, barcode/QR, print receipt, EN/VN, dark mode, optional sidebar.
 
 ## Verification Log
 
+- 2026-07-15: Ran `python -m py_compile auth.py dashboard.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for the dashboard/header rename and layout update.
 - 2026-07-15: Ran `git diff --check`.
   - Command completed successfully with no whitespace errors reported for the login CSS centering/scroll update.
 - 2026-07-15: Ran `python -m py_compile auth.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.

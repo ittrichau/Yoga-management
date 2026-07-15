@@ -82,6 +82,7 @@ header.q-header,
     box-shadow: var(--shadow-sm) !important;
     backdrop-filter: blur(12px);
     min-height: 56px !important;
+    position: relative !important;
     z-index: 2000 !important;
 }
 header.q-header .q-btn,
@@ -632,10 +633,28 @@ body.login-body .q-page-container {
     object-position: center center !important;
 }
 
+.header-brand-center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 0;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
 .header-brand-logo {
-    width: 34px;
-    height: 34px;
+    width: 50px;
+    height: 50px;
+    max-height: calc(56px - 6px);
     border-radius: 8px;
+}
+
+.header-brand-logo .q-img__container,
+.header-brand-logo .q-img__content,
+.header-brand-logo img,
+.header-brand-logo .q-img__image {
+    object-fit: contain !important;
+    object-position: center center !important;
 }
 
 .drawer-brand-logo {
