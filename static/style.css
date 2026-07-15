@@ -565,17 +565,29 @@ header.q-header .text-white\/80 {
         radial-gradient(circle at 80% 0%, rgba(247, 244, 239, 0.95), transparent 24rem),
         linear-gradient(135deg, #FFFFFF 0%, #F7F4EF 100%) !important;
     min-height: 100dvh !important;
+    height: 100dvh !important;
     margin: 0 !important;
-    overflow-x: hidden;
+    overflow: hidden !important;
 }
+
+body.login-body .nicegui-content,
+body.login-body .q-page,
+body.login-body .q-page-container {
+    min-height: 100dvh !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+}
+
 .login-center {
     min-height: 100dvh;
+    height: 100dvh;
     width: 100%;
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    padding: 2.25rem 1rem 1rem;
+    padding: 1.5rem 1rem 0.75rem;
     box-sizing: border-box;
+    overflow: hidden;
 }
 .login-card {
     background: var(--white);
@@ -586,8 +598,10 @@ header.q-header .text-white\/80 {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    width: 100%;
     text-align: center;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1rem;
 }
 .login-header .logo {
     font-size: 3rem;
@@ -604,9 +618,18 @@ header.q-header .text-white\/80 {
 .login-logo {
     display: block;
     width: 220px;
-    max-width: 80%;
+    max-width: min(80%, 220px);
     height: auto;
-    margin: 0 auto 0.5rem;
+    margin: 0 auto 0.4rem;
+    align-self: center;
+}
+
+.login-logo .q-img__container,
+.login-logo .q-img__content,
+.login-logo img,
+.login-logo .q-img__image {
+    object-fit: contain !important;
+    object-position: center center !important;
 }
 
 .header-brand-logo {
@@ -851,7 +874,7 @@ header.q-header .text-white\/80 {
 
 @media (max-width: 640px) {
     .login-center {
-        padding: 1.5rem 0.75rem 0.75rem;
+        padding: 0.75rem 0.75rem 0.5rem;
     }
 
     .login-logo {

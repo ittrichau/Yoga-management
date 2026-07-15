@@ -9,7 +9,7 @@ alwaysApply: true
 
 - Last updated: 2026-07-15
 - Current focus: UI polish, branding, confirmation dialogs for destructive actions, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; login page branding layout has been tightened while shared browser/navbar branding remains Bảo Ngọc.
+- App status: Full core system completed; login page branding has been tightened again to center logo/subtitle more reliably and prevent login-page scroll.
 
 ## Active Task
 
@@ -18,6 +18,7 @@ alwaysApply: true
 
 ## Recently Completed
 
+- Tightened `/login` CSS again: scoped the login body/page containers to `100dvh` with hidden overflow, reduced shell padding, and centered the logo/header via flex and Quasar image object-position rules to address residual scroll and logo/subtitle misalignment.
 - Adjusted `/login` branding layout: removed the extra `Fitness and yoga Bảo Ngọc` title under the logo, centered logo/subtitle reliably, reduced card padding, moved the auth card upward, and switched login shell sizing to `100dvh` to reduce unnecessary vertical scroll.
 - Updated browser title to `Fitness and yoga Bảo Ngọc`, set favicon to `/static/bao_ngoc_logo.png`, and replaced shared login/navbar/drawer branding with the Bảo Ngọc logo and name.
 - Audited delete/remove/deactivate flows and added confirmation dialogs before destructive UI actions: drink/ingredient/product/package template deactivation, user/location status changes, cart item removal on `/sales`, and package upgrade old-package deactivation.
@@ -60,6 +61,8 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-15: Ran `git diff --check`.
+  - Command completed successfully with no whitespace errors reported for the login CSS centering/scroll update.
 - 2026-07-15: Ran `python -m py_compile auth.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
   - Command completed successfully with no syntax or whitespace errors reported for the login layout update.
 - 2026-07-14: Ran `python -m py_compile main.py auth.py && git diff --check`.
