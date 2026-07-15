@@ -459,7 +459,8 @@ def render_brand_logo(classes: str = "brand-logo") -> None:
 def render_auth_header(icon: str, title: str, subtitle: str) -> None:
     with ui.element("div").classes("login-header"):
         render_brand_logo("login-logo")
-        ui.label(title).classes("title")
+        if title:
+            ui.label(title).classes("title")
         ui.label(subtitle).classes("subtitle")
 
 
@@ -681,8 +682,8 @@ def login_page():
     ui.query("body").classes("login-body")
 
     with ui.element("div").classes("login-center auth-shell"):
-        with ui.card().classes("login-card auth-card p-8 md:p-10 w-full max-w-md"):
-            render_auth_header("🧘", APP_BRAND_NAME, "Đăng nhập để quản lý phòng tập")
+        with ui.card().classes("login-card auth-card p-6 md:p-8 w-full max-w-md"):
+            render_auth_header("🧘", "", "Đăng nhập để quản lý phòng tập")
 
             username = ui.input("Tên đăng nhập").props("outlined dense").classes("w-full mb-3")
             password = ui.input("Mật khẩu", password=True, password_toggle_button=True).props("outlined dense").classes(

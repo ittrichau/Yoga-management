@@ -564,17 +564,17 @@ header.q-header .text-white\/80 {
         radial-gradient(circle at 20% 20%, rgba(143, 175, 157, 0.28), transparent 28rem),
         radial-gradient(circle at 80% 0%, rgba(247, 244, 239, 0.95), transparent 24rem),
         linear-gradient(135deg, #FFFFFF 0%, #F7F4EF 100%) !important;
-    min-height: 100vh !important;
+    min-height: 100dvh !important;
     margin: 0 !important;
     overflow-x: hidden;
 }
 .login-center {
-    min-height: 100vh;
+    min-height: 100dvh;
     width: 100%;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    padding: 1rem;
+    padding: 2.25rem 1rem 1rem;
     box-sizing: border-box;
 }
 .login-card {
@@ -583,8 +583,11 @@ header.q-header .text-white\/80 {
     box-shadow: var(--shadow-xl);
 }
 .login-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
 }
 .login-header .logo {
     font-size: 3rem;
@@ -599,10 +602,11 @@ header.q-header .text-white\/80 {
 }
 
 .login-logo {
+    display: block;
     width: 220px;
     max-width: 80%;
     height: auto;
-    margin: 0 auto 0.75rem;
+    margin: 0 auto 0.5rem;
 }
 
 .header-brand-logo {
@@ -624,7 +628,7 @@ header.q-header .text-white\/80 {
 .login-header .subtitle {
     font-size: 0.85rem;
     color: var(--gray-500);
-    margin-top: 0.25rem;
+    margin-top: 0;
 }
 
 /* ── Select Location Page ──────────────────────────────────────── */
@@ -846,6 +850,14 @@ header.q-header .text-white\/80 {
 }
 
 @media (max-width: 640px) {
+    .login-center {
+        padding: 1.5rem 0.75rem 0.75rem;
+    }
+
+    .login-logo {
+        width: 190px;
+    }
+
     .auth-card {
         padding: 1.5rem !important;
     }

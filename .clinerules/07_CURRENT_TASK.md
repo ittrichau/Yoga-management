@@ -7,17 +7,18 @@ alwaysApply: true
 
 ## Status Snapshot
 
-- Last updated: 2026-07-14
+- Last updated: 2026-07-15
 - Current focus: UI polish, branding, confirmation dialogs for destructive actions, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; web title and shared branding have been updated to Fitness and yoga Bảo Ngọc.
+- App status: Full core system completed; login page branding layout has been tightened while shared browser/navbar branding remains Bảo Ngọc.
 
 ## Active Task
 
 - Task: None.
-- Next recommended task: Verify branding/logo display locally across login, select-location, navbar, drawer, and browser tab/favicon.
+- Next recommended task: Verify login page layout locally across desktop/mobile heights, then verify shared branding across select-location, navbar, drawer, and browser tab/favicon.
 
 ## Recently Completed
 
+- Adjusted `/login` branding layout: removed the extra `Fitness and yoga Bảo Ngọc` title under the logo, centered logo/subtitle reliably, reduced card padding, moved the auth card upward, and switched login shell sizing to `100dvh` to reduce unnecessary vertical scroll.
 - Updated browser title to `Fitness and yoga Bảo Ngọc`, set favicon to `/static/bao_ngoc_logo.png`, and replaced shared login/navbar/drawer branding with the Bảo Ngọc logo and name.
 - Audited delete/remove/deactivate flows and added confirmation dialogs before destructive UI actions: drink/ingredient/product/package template deactivation, user/location status changes, cart item removal on `/sales`, and package upgrade old-package deactivation.
 - Updated user creation so adding a new user no longer requires manually selecting cơ sở; when left blank, the account is automatically assigned to all active locations for rotating teachers across both locations.
@@ -45,7 +46,7 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Verify branding/logo display locally across login, select-location, navbar, drawer, and browser tab/favicon.
+1. Verify login page layout locally across desktop/mobile heights: logo/subtitle centered, no extra brand title under logo, auth card sits higher, and no unnecessary vertical scroll.
 2. Verify destructive-action confirmation dialogs locally across `/drinks`, `/ingredients`, `/products`, `/package-templates`, `/users`, `/locations`, `/sales`, and `/packages/upgrade`.
 3. Verify all main pages for the tightened top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
 4. Verify `/sales` cart checkout flow locally with multi-product, drink, package-drink, stock deduction, and today's transactions.
@@ -59,6 +60,8 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-15: Ran `python -m py_compile auth.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for the login layout update.
 - 2026-07-14: Ran `python -m py_compile main.py auth.py && git diff --check`.
   - Command completed successfully with no syntax or whitespace errors reported for the branding/title/logo update.
 - 2026-07-14: Ran `python -m py_compile auth.py drink.py ingredient.py product.py package_template.py transaction.py package_upgrade.py package.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
