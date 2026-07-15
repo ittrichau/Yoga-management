@@ -9,16 +9,17 @@ alwaysApply: true
 
 - Last updated: 2026-07-15
 - Current focus: UI polish, branding, confirmation dialogs for destructive actions, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; dashboard has been renamed to Trang chính and the shared header now uses a left-side menu button with the logo centered inside the existing header height.
+- App status: Full core system completed; dashboard has been renamed to Trang chính and the shared header now uses a left-side menu button with a wider centered logo inside the existing header height.
 
 ## Active Task
 
-- Task: None.
-- Next recommended task: Verify the shared header locally across desktop/mobile: menu button on the left, logo centered and as large as possible without changing header height, and dashboard title shown as Trang chính.
+- Task: Header/logo polish completed.
+- Next recommended task: Verify the shared header locally across desktop/mobile: menu button on the left, logo centered and wider without changing header height, and dashboard title shown as Trang chính.
 
 ## Recently Completed
 
 - Renamed the dashboard UI from `Bảng điều khiển` to `Trang chính`, updated drawer/mobile nav labels, moved the top menu button to the left, and centered the Bảo Ngọc logo in the header while keeping the existing header height.
+- Removed the `Fitness and yoga Bảo Ngọc` text from the left drawer brand area and widened the shared logo presentation in the header and drawer.
 - Tightened `/login` CSS again: scoped the login body/page containers to `100dvh` with hidden overflow, reduced shell padding, and centered the logo/header via flex and Quasar image object-position rules to address residual scroll and logo/subtitle misalignment.
 - Adjusted `/login` branding layout: removed the extra `Fitness and yoga Bảo Ngọc` title under the logo, centered logo/subtitle reliably, reduced card padding, moved the auth card upward, and switched login shell sizing to `100dvh` to reduce unnecessary vertical scroll.
 - Updated browser title to `Fitness and yoga Bảo Ngọc`, set favicon to `/static/bao_ngoc_logo.png`, and replaced shared login/navbar/drawer branding with the Bảo Ngọc logo and name.
@@ -48,7 +49,7 @@ alwaysApply: true
 
 ## Pending / Next
 
-1. Verify shared header locally across desktop/mobile: left menu button, centered large logo, unchanged header height, and right-side location/user/actions not overlapping.
+1. Verify shared header locally across desktop/mobile: left menu button, centered wider logo, unchanged header height, and right-side location/user/actions not overlapping.
 2. Verify login page layout locally across desktop/mobile heights: logo/subtitle centered, no extra brand title under logo, auth card sits higher, and no unnecessary vertical scroll.
 3. Verify destructive-action confirmation dialogs locally across `/drinks`, `/ingredients`, `/products`, `/package-templates`, `/users`, `/locations`, `/sales`, and `/packages/upgrade`.
 4. Verify all main pages for the tightened top spacing, deploy local fixes, then verify `/dashboard`, `/drinks`, and `/sales` on production.
@@ -67,6 +68,9 @@ alwaysApply: true
   - Command completed successfully with no syntax or whitespace errors reported for the dashboard/header rename and layout update.
 - 2026-07-15: Ran `git diff --check`.
   - Command completed successfully with no whitespace errors reported for the login CSS centering/scroll update.
+- 2026-07-15: Updated shared branding so the drawer no longer shows `Fitness and yoga Bảo Ngọc` and the logo is wider in the header/drawer.
+- 2026-07-15: Ran `python -m py_compile auth.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for the header/drawer logo polish.
 - 2026-07-15: Ran `python -m py_compile auth.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
   - Command completed successfully with no syntax or whitespace errors reported for the login layout update.
 - 2026-07-14: Ran `python -m py_compile main.py auth.py && git diff --check`.

@@ -551,9 +551,8 @@ def render_navbar():
     menu_drawer = ui.left_drawer(fixed=True, value=False).classes("app-drawer")
     with menu_drawer:
         with ui.column().classes("w-full gap-1 p-3"):
-            with ui.row().classes("items-center gap-2 px-2 py-2"):
+            with ui.row().classes("items-center justify-center px-2 py-2"):
                 render_brand_logo("drawer-brand-logo")
-                ui.label(APP_BRAND_NAME).classes("text-lg font-bold")
             ui.label(f"📍 {loc_name}").classes("location-badge active w-full justify-center mb-2")
             ui.separator()
 
