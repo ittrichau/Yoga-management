@@ -652,10 +652,13 @@ body.login-body .q-page-container {
     z-index: 0;
     transform: translate(-50%, -50%);
     pointer-events: none;
+    width: min(72vw, 240px);
+    display: flex;
+    justify-content: center;
 }
 
 .header-brand-logo {
-    width: clamp(120px, 12vw, 160px);
+    width: clamp(138px, 18vw, 188px);
     height: 50px;
     max-height: calc(56px - 6px);
     border-radius: 8px;
@@ -913,6 +916,14 @@ body.login-body .q-page-container {
         width: 190px;
     }
 
+    .header-brand-center {
+        width: min(78vw, 260px);
+    }
+
+    .header-brand-logo {
+        width: clamp(150px, 38vw, 212px);
+    }
+
     .auth-card {
         padding: 1.5rem !important;
     }
@@ -987,6 +998,14 @@ body.login-body .q-page-container {
     .mobile-nav-btn {
         padding: 2px 4px !important;
         font-size: 0.7rem !important;
+    }
+
+    .header-brand-center {
+        width: min(80vw, 240px);
+    }
+
+    .header-brand-logo {
+        width: clamp(142px, 40vw, 198px);
     }
 }
 
