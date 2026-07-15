@@ -13,11 +13,12 @@ alwaysApply: true
 
 ## Active Task
 
-- Task: Header logo sizing polish completed.
-- Next recommended task: Verify shared header locally across desktop/mobile to confirm the larger centered logo stays clear and does not overlap the menu/location/user actions.
+- Task: Use the small Bảo Ngọc logo only in the shared navigation/sidebar header area.
+- Next recommended task: Verify shared header locally across desktop/mobile to confirm the new small logo stays clear and does not overlap the menu/location/user actions.
 
 ## Recently Completed
 
+- Switched the shared navigation/sidebar header brand image in `auth.py` to `static/bao_ngoc_logo_small.png` only, leaving other branding usages unchanged.
 - Enlarged the centered Bảo Ngọc header logo with responsive CSS width rules for desktop/mobile while keeping the existing 56px header height and centered alignment.
 - Removed the large blank top gap below the shared header across pages by re-tuning NiceGUI/Quasar page-container/header spacing and testing the shared layout, including the `/sales` page-specific container.
 - Renamed the dashboard UI from `Bảng điều khiển` to `Trang chính`, updated drawer/mobile nav labels, moved the top menu button to the left, and centered the Bảo Ngọc logo in the header while keeping the existing header height.
@@ -66,6 +67,7 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-15: Switched the shared navigation/sidebar header brand image in `auth.py` to `static/bao_ngoc_logo_small.png` only, leaving other branding usages unchanged.
 - 2026-07-15: Enlarged the shared centered header logo in `static/style.css` using responsive width rules for normal, mobile, and very small phone breakpoints.
 - 2026-07-15: Updated global CSS spacing to remove the large blank top gap below the shared header across all pages.
 - 2026-07-15: Ran `python -m py_compile auth.py dashboard.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.

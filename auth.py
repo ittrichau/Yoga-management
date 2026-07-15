@@ -449,7 +449,7 @@ def render_access_denied(message: str) -> None:
 
 APP_BRAND_NAME = "Fitness and yoga Bảo Ngọc"
 APP_BRAND_SHORT_NAME = "Bảo Ngọc"
-APP_LOGO_PATH = "/static/bao_ngoc_logo.png"
+APP_LOGO_PATH = "/static/bao_ngoc_logo_small.png"
 
 
 def render_brand_logo(classes: str = "brand-logo") -> None:
