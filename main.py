@@ -5,7 +5,7 @@ from pathlib import Path
 from nicegui import ui, app
 
 from database import init_db, migrate_schema, seed_defaults
-from auth import router as auth_router
+from auth import navigate_with_loading, router as auth_router
 from customer import router as customer_router
 from checkin import router as checkin_router
 from drink import router as drink_router
@@ -25,12 +25,12 @@ def index():
     """Redirect to dashboard."""
     from auth import get_current_location_id
     if not app.storage.user.get("token"):
-        ui.navigate.to("/login")
+        navigate_with_loading("/login", "Đang tải trang đăng nhập...")
         return
     if not get_current_location_id():
-        ui.navigate.to("/select-location")
+        navigate_with_loading("/select-location", "Đang tải trang chọn cơ sở...")
         return
-    ui.navigate.to("/dashboard")
+    navigate_with_loading("/dashboard", "Đang mở trang chính...")
 
 
 # Allow running under both `python main.py` and multiprocessing contexts

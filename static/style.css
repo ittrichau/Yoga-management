@@ -355,6 +355,53 @@ header.q-header .text-white\/80 {
     }
 }
 
+/* ── Loading Overlay ───────────────────────────────────────────── */
+.yg-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(4px);
+}
+
+.yg-loading-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 1.1rem 1.4rem;
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--shadow-xl);
+    border: 1px solid rgba(229, 231, 235, 0.95);
+    min-width: 140px;
+}
+
+.yg-loading-spinner {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    border: 3px solid rgba(143, 175, 157, 0.22);
+    border-top-color: var(--primary);
+    animation: yg-spin 0.8s linear infinite;
+}
+
+.yg-loading-text {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    text-align: center;
+}
+
+@keyframes yg-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* ── Page Title ────────────────────────────────────────────────── */
 .page-title {
     font-size: 1.55rem;

@@ -77,12 +77,49 @@ def get_current_location_name() -> str:
 
 
 def load_styles() -> None:
-    ui.add_head_html('<link rel="stylesheet" href="/static/style.css">')
+    ui.add_head_html('<link rel="stylesheet" href="/static/style.css">', shared=True)
+    ui.add_head_html(
+        """
+        <script>
+        window.__ygLoadingOverlay = window.__ygLoadingOverlay || {
+          show(text) {
+            const existing = document.getElementById('yg-loading-overlay');
+            if (existing) existing.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'yg-loading-overlay';
+            overlay.className = 'yg-loading-overlay';
+            overlay.innerHTML = `
+              <div class="yg-loading-card">
+                <div class="yg-loading-spinner"></div>
+                <div class="yg-loading-text">${text || 'Đang tải...'}</div>
+              </div>
+            `;
+            document.body.appendChild(overlay);
+          },
+          hide() {
+            const overlay = document.getElementById('yg-loading-overlay');
+            if (overlay) overlay.remove();
+          }
+        };
+        </script>
+        """,
+        shared=True,
+    )
+
+
+def show_loading(text: str = "Đang tải...") -> None:
+    ui.run_javascript(f"window.__ygLoadingOverlay && window.__ygLoadingOverlay.show({json.dumps(text)});")
+
+
+def navigate_with_loading(path: str, text: str = "Đang tải...") -> None:
+    show_loading(text)
+    ui.run_javascript(f"setTimeout(() => window.location.href = {json.dumps(path)}, 80)")
 
 
 def logout() -> None:
+    show_loading("Đang đăng xuất...")
     app.storage.user.clear()
-    ui.navigate.to("/login")
+    ui.run_javascript("setTimeout(() => window.location.href = '/login', 80)")
 
 
 def store_login_session(user_data: dict[str, Any]) -> None:
@@ -488,7 +525,7 @@ def ui_error_from_exception(exc: Exception, fallback: str) -> None:
 def switch_location(location_id: int, location_name: str):
     app.storage.user.update({"location_id": location_id, "location_name": location_name})
     ui.notify(f"Đã chuyển sang {location_name}", type="positive")
-    ui.run_javascript("location.href = '/'")
+    navigate_with_loading("/", "Đang tải dữ liệu cơ sở mới...")
     # Force page reload so all data refreshes for the new location
 
 
@@ -567,7 +604,7 @@ def render_navbar():
                 ("fitness_center", "PT", "/pt"),
             ]
             for icon, label, path in menu_items:
-                ui.button(label, icon=icon, on_click=lambda p=path: ui.navigate.to(p)).props(
+                ui.button(label, icon=icon, on_click=lambda p=path: navigate_with_loading(p)).props(
                     "flat no-caps align=left"
                 ).classes("drawer-nav-btn w-full")
 
@@ -597,10 +634,10 @@ def render_navbar():
             if role == "ADMIN":
                 ui.separator()
                 ui.label("Quản trị").classes("drawer-section-label")
-                ui.button("Người dùng", icon="manage_accounts", on_click=lambda: ui.navigate.to("/users")).props(
+                ui.button("Người dùng", icon="manage_accounts", on_click=lambda: navigate_with_loading("/users")).props(
                     "flat no-caps align=left"
                 ).classes("drawer-nav-btn w-full")
-                ui.button("Cơ sở", icon="business", on_click=lambda: ui.navigate.to("/locations")).props(
+                ui.button("Cơ sở", icon="business", on_click=lambda: navigate_with_loading("/locations")).props(
                     "flat no-caps align=left"
                 ).classes("drawer-nav-btn w-full")
 
