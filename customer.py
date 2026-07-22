@@ -305,49 +305,48 @@ def render():
         ).fetchone()
     location_name = location["name"] if location else "Chưa chọn cơ sở"
 
-    with ui.element("div").classes("page-container"):
-        with ui.element("section").classes("customer-page-header"):
-            with ui.row().classes("customer-page-heading"):
-                with ui.element("div").classes("customer-page-icon"):
-                    ui.icon("groups")
-                with ui.column().classes("customer-page-title-wrap"):
-                    ui.label("Khách hàng").classes("customer-page-title")
-                    ui.label(
-                        "Quản lý hồ sơ và thông tin liên hệ"
-                    ).classes("customer-page-subtitle")
-                ui.label(location_name).classes("customer-location-badge")
+    with ui.element("div").classes("page-container customer-page"):
+        with ui.element("section").classes("customer-list-header"):
+            with ui.element("div").classes("customer-title-group"):
+                ui.label("Danh sách khách hàng").classes("customer-list-title")
+                ui.label(
+                    f"Quản lý khách hàng tại {location_name}"
+                ).classes("customer-list-subtitle")
 
-            with ui.row().classes("customer-summary-row"):
-                customer_count = ui.label("0 khách hàng").classes(
-                    "customer-count-label"
-                )
-                ui.label("Danh sách tại cơ sở hiện tại").classes(
-                    "customer-count-caption"
-                )
-
-        with ui.element("section").classes("customer-toolbar-card"):
-            search_input = ui.input(
-                placeholder="Tìm theo tên, số điện thoại hoặc mã khách hàng"
-            ).props("outlined clearable dense").classes("customer-search-input")
-            with search_input.add_slot("prepend"):
-                ui.icon("search").classes("customer-search-field-icon")
-            with ui.element("div").classes("customer-search-actions"):
+            with ui.element("div").classes("customer-toolbar"):
+                search_input = ui.input(
+                    placeholder="Tìm kiếm khách hàng"
+                ).props("outlined clearable dense").classes("customer-search-input")
+                with search_input.add_slot("append"):
+                    ui.icon("search").classes("customer-search-field-icon")
                 ui.button(
                     "Tìm kiếm",
                     icon="search",
                     on_click=lambda: refresh_customers(),
                 ).props("unelevated no-caps").classes(
-                    "btn-primary customer-search-button"
+                    "customer-search-button"
                 )
                 ui.button(
                     "Thêm khách hàng",
                     icon="person_add",
                     on_click=lambda: create_dialog.open(),
                 ).props("unelevated no-caps").classes(
-                    "btn-success customer-add-button"
+                    "customer-add-button"
                 )
 
-        customer_list = ui.element("div").classes("customer-card-grid")
+        customer_count = ui.label("0 khách hàng").classes("customer-count-label")
+
+        with ui.element("section").classes("customer-table-shell"):
+            with ui.element("div").classes("customer-table-header"):
+                ui.label("STT")
+                ui.label("Mã khách hàng")
+                ui.label("Họ và tên")
+                ui.label("Số điện thoại")
+                ui.label("Ngày sinh")
+                ui.label("Ghi chú")
+                ui.label("Thao tác").classes("customer-actions-heading")
+
+            customer_list = ui.element("div").classes("customer-table-body")
 
         def _fmt_birth_date(bd):
             """Convert YYYY-MM-DD to DD/MM/YYYY for display."""
@@ -449,68 +448,82 @@ def render():
 
                 can_manage = app.storage.user.get("role") in {"OWNER", "ADMIN"}
                 for index, customer in enumerate(customers, start=1):
-                    initials = "".join(
-                        part[0] for part in customer["full_name"].split()[-2:]
-                        if part
-                    ).upper() or "KH"
-                    with ui.card().classes("customer-card"):
-                        with ui.row().classes("customer-card-heading"):
-                            with ui.element("div").classes("customer-avatar"):
-                                ui.label(initials)
-                            with ui.column().classes("customer-name-wrap"):
-                                ui.label(customer["full_name"]).classes("customer-name")
-                                with ui.row().classes("customer-card-meta"):
-                                    ui.label(customer.get("code") or f"KH-{index}").classes(
-                                        "customer-code-badge"
-                                    )
-                                    ui.label(f"STT {index}").classes("customer-order-label")
+                    phone_value = customer.get("phone") or "Chưa cập nhật"
+                    birth_date_value = (
+                        _fmt_birth_date(customer["birth_date"])
+                        if customer.get("birth_date")
+                        else "Chưa cập nhật"
+                    )
+                    notes_value = (customer.get("notes") or "").strip() or "Không có"
 
-                        with ui.column().classes("customer-info-list"):
-                            with ui.row().classes("customer-info-row"):
-                                with ui.element("div").classes("customer-info-icon-wrap"):
-                                    ui.icon("phone")
-                                with ui.column().classes("customer-info-content"):
-                                    ui.label("Số điện thoại").classes("customer-info-label")
-                                    ui.label(
-                                        customer.get("phone") or "Chưa cập nhật"
-                                    ).classes(
-                                        "customer-info-value"
-                                        + ("" if customer.get("phone") else " is-empty")
-                                    )
-                            if customer.get("birth_date"):
-                                with ui.row().classes("customer-info-row"):
-                                    with ui.element("div").classes("customer-info-icon-wrap"):
-                                        ui.icon("cake")
-                                    with ui.column().classes("customer-info-content"):
-                                        ui.label("Ngày sinh").classes("customer-info-label")
-                                        ui.label(
-                                            _fmt_birth_date(customer["birth_date"])
-                                        ).classes("customer-info-value")
-                            if (customer.get("notes") or "").strip():
-                                with ui.row().classes(
-                                    "customer-info-row customer-notes-row"
-                                ):
-                                    with ui.element("div").classes("customer-info-icon-wrap"):
-                                        ui.icon("notes")
-                                    with ui.column().classes("customer-info-content"):
-                                        ui.label("Ghi chú").classes("customer-info-label")
-                                        ui.label(customer["notes"]).classes(
-                                            "customer-info-value customer-notes"
-                                        )
+                    with ui.element("article").classes("customer-table-row"):
+                        with ui.element("div").classes(
+                            "customer-table-cell customer-index-cell"
+                        ):
+                            ui.label("STT").classes("customer-mobile-label")
+                            ui.label(str(index)).classes("customer-cell-value")
 
-                        if can_manage:
-                            with ui.row().classes("customer-card-actions"):
+                        with ui.element("div").classes(
+                            "customer-table-cell customer-code-cell"
+                        ):
+                            ui.label("Mã khách hàng").classes("customer-mobile-label")
+                            ui.label(
+                                customer.get("code") or f"KH-{index}"
+                            ).classes("customer-cell-value customer-code-value")
+
+                        with ui.element("div").classes(
+                            "customer-table-cell customer-name-cell"
+                        ):
+                            ui.label("Họ và tên").classes("customer-mobile-label")
+                            ui.label(customer["full_name"]).classes(
+                                "customer-cell-value customer-name-value"
+                            )
+
+                        with ui.element("div").classes(
+                            "customer-table-cell customer-phone-cell"
+                        ):
+                            ui.label("Số điện thoại").classes("customer-mobile-label")
+                            ui.label(phone_value).classes(
+                                "customer-cell-value"
+                                + ("" if customer.get("phone") else " is-empty")
+                            )
+
+                        with ui.element("div").classes(
+                            "customer-table-cell customer-birth-cell"
+                        ):
+                            ui.label("Ngày sinh").classes("customer-mobile-label")
+                            ui.label(birth_date_value).classes(
+                                "customer-cell-value"
+                                + ("" if customer.get("birth_date") else " is-empty")
+                            )
+
+                        with ui.element("div").classes(
+                            "customer-table-cell customer-notes-cell"
+                        ):
+                            ui.label("Ghi chú").classes("customer-mobile-label")
+                            ui.label(notes_value).classes(
+                                "customer-cell-value customer-notes-value"
+                                + ("" if (customer.get("notes") or "").strip() else " is-empty")
+                            )
+
+                        with ui.element("div").classes(
+                            "customer-table-cell customer-row-actions"
+                        ):
+                            if can_manage:
                                 ui.button(
-                                    "Chỉnh sửa",
                                     icon="edit",
                                     on_click=lambda row=customer: open_edit(row),
-                                ).props("flat no-caps").classes("customer-edit-button")
+                                ).props("flat round dense").classes(
+                                    "customer-edit-button"
+                                ).tooltip("Chỉnh sửa khách hàng")
                                 ui.button(
                                     icon="delete_outline",
                                     on_click=lambda row=customer: open_delete(row),
                                 ).props("flat round dense").classes(
                                     "customer-delete-button"
                                 ).tooltip("Xóa khách hàng")
+                            else:
+                                ui.label("—").classes("customer-no-actions")
 
         with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
             with ui.element("div").classes("absolute top-2 right-2"):

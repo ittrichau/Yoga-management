@@ -8,16 +8,18 @@ alwaysApply: true
 ## Status Snapshot
 
 - Last updated: 2026-07-22
-- Current focus: Verify the redesigned customer page across desktop/mobile.
-- App status: Full core system completed; the customer list now has a clearer responsive SaaS-style layout.
+- Current focus: Verify the new customer desktop-table/mobile-card layout locally.
+- App status: Full core system completed; the customer list now follows a compact responsive table/card layout.
 
 ## Active Task
 
-- Task: Redesigned the `/customers` page header, search toolbar, summary, and customer cards.
-- Next recommended task: Verify the redesigned `/customers` page and birth-date picker locally across desktop/mobile and all roles.
+- Task: Rebuilt `/customers` from the previous card grid into a desktop table that transforms into labeled customer cards on mobile.
+- Next recommended task: Verify the new `/customers` layout and birth-date picker locally across desktop/mobile and all roles.
 
 ## Recently Completed
 
+- Removed the previous customer-page CSS and replaced it with a new compact responsive layout based on the supplied reference: desktop table, mobile label-value cards, search toolbar, add button, and compact edit/delete actions.
+- Rebuilt the `/customers` list markup with STT, customer code, name, phone, birth date, notes, and permission-aware actions while preserving search, location scoping, soft delete, dialogs, and audit behavior.
 - Redesigned `/customers` with a structured page header, location/count summary, clearer search actions, avatar initials, customer-code badges, labeled contact information, safer compact delete action, and responsive mobile styling.
 - Fixed the `/customers` add/edit birth-date picker by anchoring the date menu to its input and making both the field and calendar icon open the popup reliably.
 - Redesigned `/customers`: replaced the table with responsive customer cards, displayed list sequence numbers instead of customer codes, moved search/search button/add button above the list, removed duplicate actions, and added empty states.
@@ -71,6 +73,8 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-22: Ran `python -m py_compile customer.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git --no-pager diff --stat -- customer.py static/style.css .clinerules/07_CURRENT_TASK.md`.
+  - Command completed successfully with no Python syntax or whitespace errors reported for the new customer desktop-table/mobile-card layout.
 - 2026-07-22: Ran `python -m py_compile customer.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git --no-pager diff --stat -- customer.py static/style.css`.
   - Command completed successfully with no syntax or whitespace errors reported for the customer page visual redesign.
 - 2026-07-22: Ran `python -m py_compile customer.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git --no-pager diff -- customer.py`.
