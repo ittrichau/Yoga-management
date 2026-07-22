@@ -8,16 +8,17 @@ alwaysApply: true
 ## Status Snapshot
 
 - Last updated: 2026-07-22
-- Current focus: Customer page card layout, responsive search toolbar, soft-delete, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; the customer page now uses responsive customer cards instead of a table and supports safe customer soft-delete.
+- Current focus: Verify the customer page and fixed birth-date picker across desktop/mobile.
+- App status: Full core system completed; the customer add/edit dialogs now use a correctly anchored birth-date popup.
 
 ## Active Task
 
-- Task: Completed the customer page redesign with responsive cards, top search toolbar, sequence numbers, and customer soft-delete.
-- Next recommended task: Verify the redesigned `/customers` page locally across desktop/mobile and all roles.
+- Task: Fixed the birth-date popup used by both add and edit customer dialogs.
+- Next recommended task: Verify the redesigned `/customers` page and birth-date picker locally across desktop/mobile and all roles.
 
 ## Recently Completed
 
+- Fixed the `/customers` add/edit birth-date picker by anchoring the date menu to its input and making both the field and calendar icon open the popup reliably.
 - Redesigned `/customers`: replaced the table with responsive customer cards, displayed list sequence numbers instead of customer codes, moved search/search button/add button above the list, removed duplicate actions, and added empty states.
 - Added OWNER/ADMIN customer soft-delete with a confirmation dialog, `location_id` scoping, preserved historical data, and audit logging.
 - Split logo usage in `auth.py` so login and the shared top/header use `static/bao_ngoc_logo.png`, while only the drawer/menu uses `static/bao_ngoc_logo_small.png`.
@@ -69,6 +70,8 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-22: Ran `python -m py_compile customer.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git --no-pager diff -- customer.py`.
+  - Command completed successfully with no syntax or whitespace errors reported for the customer birth-date popup fix.
 - 2026-07-22: Ran `python -m py_compile customer.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
   - Command completed successfully with no syntax or whitespace errors reported for the customer page card redesign and soft-delete update.
 - 2026-07-15: Switched the shared navigation/sidebar header brand image in `auth.py` to `static/bao_ngoc_logo_small.png` only, leaving other branding usages unchanged.

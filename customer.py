@@ -340,14 +340,27 @@ def render():
 
         def _create_birth_date_picker(label: str):
             """Create a Vietnamese date picker displaying DD/MM/YYYY but storing YYYY-MM-DD."""
-            date_input = ui.input(label).props("outlined dense readonly").classes("w-full mb-2 cursor-pointer")
-            with date_input.add_slot("append"):
-                ui.icon("event").classes("cursor-pointer")
-            with ui.menu().props("no-parent-event") as menu:
-                date_picker = ui.date(mask="YYYY-MM-DD").props("minimal")
-                with ui.row().classes("justify-end w-full p-2"):
-                    ui.button("Xóa", on_click=lambda: (setattr(date_input, "value", ""), setattr(date_picker, "value", None), menu.close())).props("flat")
-                    ui.button("Chọn", on_click=menu.close).props("flat")
+            with ui.input(label).props("outlined dense readonly").classes(
+                "w-full mb-2 cursor-pointer"
+            ) as date_input:
+                with ui.menu().props("no-parent-event") as menu:
+                    date_picker = ui.date(mask="YYYY-MM-DD").props("minimal")
+                    with ui.row().classes("justify-end w-full p-2"):
+                        ui.button(
+                            "Xóa",
+                            on_click=lambda: (
+                                setattr(date_input, "value", ""),
+                                setattr(date_picker, "value", None),
+                                menu.close(),
+                            ),
+                        ).props("flat")
+                        ui.button("Chọn", on_click=menu.close).props("flat")
+
+                with date_input.add_slot("append"):
+                    ui.icon("event").classes("cursor-pointer").on(
+                        "click", menu.open
+                    )
+
             date_input.on("click", menu.open)
 
             def sync_date(e):
