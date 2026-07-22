@@ -8,13 +8,13 @@ alwaysApply: true
 ## Status Snapshot
 
 - Last updated: 2026-07-22
-- Current focus: Verify the new customer desktop-table/mobile-card layout locally.
-- App status: Full core system completed; the customer list now follows a compact responsive table/card layout.
+- Current focus: Visually verify the final compact `/customers` desktop-table/mobile-card layout locally.
+- App status: Full core system completed; the customer list implementation passed static verification, with browser verification still pending.
 
 ## Active Task
 
-- Task: Rebuilt `/customers` from the previous card grid into a desktop table that transforms into labeled customer cards on mobile.
-- Next recommended task: Verify the new `/customers` layout and birth-date picker locally across desktop/mobile and all roles.
+- Task: Verify the final `/customers` layout after removing STT/the separate action column and moving permission-aware edit/delete actions beside the customer name.
+- Next recommended task: Verify `/customers` visually across desktop/mobile and STAFF/MANAGER/OWNER, including search, add/edit dialogs, birth-date picker, and soft-delete confirmation.
 
 ## Recently Completed
 
@@ -73,6 +73,10 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-22: Rechecked the interrupted `/customers` task and confirmed the pending changes remain limited to `customer.py` and `static/style.css`.
+  - Reviewed the final five-column desktop markup, mobile label-value card CSS, permission-aware actions, search/empty states, add/edit close buttons, birth-date picker, location scoping, soft delete, and audit logging.
+  - `python -m py_compile customer.py main.py auth.py` and `git diff --check` completed successfully.
+  - A runtime import check could not complete because the active Python environment is missing the installed `jwt` module; browser verification remains pending and no long-lived server was started per project rules.
 - 2026-07-22: Ran `python -m py_compile customer.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git --no-pager diff --stat -- customer.py static/style.css .clinerules/07_CURRENT_TASK.md`.
   - Command completed successfully with no Python syntax or whitespace errors reported for the new customer desktop-table/mobile-card layout.
 - 2026-07-22: Ran `python -m py_compile customer.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git --no-pager diff --stat -- customer.py static/style.css`.

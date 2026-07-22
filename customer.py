@@ -338,13 +338,11 @@ def render():
 
         with ui.element("section").classes("customer-table-shell"):
             with ui.element("div").classes("customer-table-header"):
-                ui.label("STT")
                 ui.label("Mã khách hàng")
                 ui.label("Họ và tên")
                 ui.label("Số điện thoại")
                 ui.label("Ngày sinh")
                 ui.label("Ghi chú")
-                ui.label("Thao tác").classes("customer-actions-heading")
 
             customer_list = ui.element("div").classes("customer-table-body")
 
@@ -447,7 +445,7 @@ def render():
                     return
 
                 can_manage = app.storage.user.get("role") in {"OWNER", "ADMIN"}
-                for index, customer in enumerate(customers, start=1):
+                for customer in customers:
                     phone_value = customer.get("phone") or "Chưa cập nhật"
                     birth_date_value = (
                         _fmt_birth_date(customer["birth_date"])
@@ -458,17 +456,11 @@ def render():
 
                     with ui.element("article").classes("customer-table-row"):
                         with ui.element("div").classes(
-                            "customer-table-cell customer-index-cell"
-                        ):
-                            ui.label("STT").classes("customer-mobile-label")
-                            ui.label(str(index)).classes("customer-cell-value")
-
-                        with ui.element("div").classes(
                             "customer-table-cell customer-code-cell"
                         ):
                             ui.label("Mã khách hàng").classes("customer-mobile-label")
                             ui.label(
-                                customer.get("code") or f"KH-{index}"
+                                customer.get("code") or "Chưa có mã"
                             ).classes("customer-cell-value customer-code-value")
 
                         with ui.element("div").classes(
@@ -478,6 +470,20 @@ def render():
                             ui.label(customer["full_name"]).classes(
                                 "customer-cell-value customer-name-value"
                             )
+                            if can_manage:
+                                with ui.element("div").classes("customer-row-actions"):
+                                    ui.button(
+                                        icon="edit",
+                                        on_click=lambda row=customer: open_edit(row),
+                                    ).props("flat round dense").classes(
+                                        "customer-edit-button"
+                                    ).tooltip("Chỉnh sửa khách hàng")
+                                    ui.button(
+                                        icon="delete_outline",
+                                        on_click=lambda row=customer: open_delete(row),
+                                    ).props("flat round dense").classes(
+                                        "customer-delete-button"
+                                    ).tooltip("Xóa khách hàng")
 
                         with ui.element("div").classes(
                             "customer-table-cell customer-phone-cell"
@@ -506,24 +512,6 @@ def render():
                                 + ("" if (customer.get("notes") or "").strip() else " is-empty")
                             )
 
-                        with ui.element("div").classes(
-                            "customer-table-cell customer-row-actions"
-                        ):
-                            if can_manage:
-                                ui.button(
-                                    icon="edit",
-                                    on_click=lambda row=customer: open_edit(row),
-                                ).props("flat round dense").classes(
-                                    "customer-edit-button"
-                                ).tooltip("Chỉnh sửa khách hàng")
-                                ui.button(
-                                    icon="delete_outline",
-                                    on_click=lambda row=customer: open_delete(row),
-                                ).props("flat round dense").classes(
-                                    "customer-delete-button"
-                                ).tooltip("Xóa khách hàng")
-                            else:
-                                ui.label("—").classes("customer-no-actions")
 
         with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
             with ui.element("div").classes("absolute top-2 right-2"):

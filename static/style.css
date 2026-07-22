@@ -622,13 +622,11 @@ header.q-header .text-white\/80 {
 .customer-table-row {
     display: grid;
     grid-template-columns:
-        minmax(3rem, 0.45fr)
         minmax(7rem, 1fr)
-        minmax(10rem, 1.45fr)
+        minmax(13rem, 1.65fr)
         minmax(8rem, 1.15fr)
         minmax(7rem, 1fr)
-        minmax(9rem, 1.4fr)
-        minmax(6.5rem, 0.75fr);
+        minmax(9rem, 1.4fr);
     align-items: center;
     width: 100%;
 }
@@ -693,7 +691,13 @@ header.q-header .text-white\/80 {
     font-weight: 700;
 }
 
+.customer-name-cell {
+    justify-content: space-between;
+    gap: 0.45rem;
+}
+
 .customer-name-value {
+    flex: 1;
     color: var(--gray-800);
     font-weight: 700;
 }
@@ -711,8 +715,11 @@ header.q-header .text-white\/80 {
 }
 
 .customer-row-actions {
-    justify-content: center;
-    gap: 0.25rem;
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.2rem;
 }
 
 .customer-edit-button {
@@ -794,7 +801,7 @@ header.q-header .text-white\/80 {
 
     .customer-table-header,
     .customer-table-row {
-        min-width: 850px;
+        min-width: 760px;
     }
 }
 
@@ -852,16 +859,14 @@ header.q-header .text-white\/80 {
     .customer-table-body {
         display: flex;
         flex-direction: column;
-        gap: 0.7rem;
+        gap: 0.5rem;
     }
 
     .customer-table-row {
-        position: relative;
         display: flex;
         flex-direction: column;
         min-width: 0;
         min-height: 0;
-        padding: 0.45rem 0 0;
         overflow: hidden;
         border: 1px solid var(--gray-200);
         border-radius: 4px;
@@ -875,10 +880,10 @@ header.q-header .text-white\/80 {
 
     .customer-table-cell {
         display: grid;
-        grid-template-columns: minmax(6.8rem, 0.8fr) minmax(0, 1.2fr);
+        grid-template-columns: minmax(6.2rem, 0.75fr) minmax(0, 1.25fr);
         width: 100%;
-        min-height: 34px;
-        padding: 0.45rem 0.7rem;
+        min-height: 29px;
+        padding: 0.32rem 0.55rem;
     }
 
     .customer-table-cell:nth-child(even):not(.customer-row-actions) {
@@ -897,9 +902,11 @@ header.q-header .text-white\/80 {
     }
 
     .customer-name-cell {
-        order: -2;
-        min-height: 42px;
-        padding-right: 6.2rem;
+        display: flex;
+        order: -1;
+        min-height: 36px;
+        padding: 0.25rem 0.4rem 0.25rem 0.55rem;
+        background: #fff !important;
     }
 
     .customer-name-cell .customer-mobile-label {
@@ -907,12 +914,9 @@ header.q-header .text-white\/80 {
     }
 
     .customer-name-value {
-        grid-column: 1 / -1;
-        font-size: 0.84rem;
-    }
-
-    .customer-index-cell {
-        order: -1;
+        min-width: 0;
+        font-size: 0.82rem;
+        line-height: 1.2;
     }
 
     .customer-notes-value {
@@ -922,11 +926,6 @@ header.q-header .text-white\/80 {
     }
 
     .customer-row-actions {
-        position: absolute;
-        top: 0.4rem;
-        right: 0.45rem;
-        display: flex;
-        justify-content: flex-end;
         width: auto;
         min-height: 0;
         padding: 0;
@@ -934,12 +933,9 @@ header.q-header .text-white\/80 {
     }
 
     .customer-row-actions .q-btn {
-        min-width: 32px;
-        min-height: 32px;
-    }
-
-    .customer-no-actions {
-        display: none;
+        min-width: 28px;
+        min-height: 28px;
+        padding: 0;
     }
 
     .customer-empty-state {
