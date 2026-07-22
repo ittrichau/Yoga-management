@@ -7,17 +7,19 @@ alwaysApply: true
 
 ## Status Snapshot
 
-- Last updated: 2026-07-15
-- Current focus: UI polish, spacing refinement, branding, confirmation dialogs for destructive actions, validation, search/filter, and backlog refinement.
-- App status: Full core system completed; shared header branding is being polished so the centered Bảo Ngọc logo is larger and clearer on mobile without increasing header height.
+- Last updated: 2026-07-22
+- Current focus: Customer page card layout, responsive search toolbar, soft-delete, validation, search/filter, and backlog refinement.
+- App status: Full core system completed; the customer page now uses responsive customer cards instead of a table and supports safe customer soft-delete.
 
 ## Active Task
 
-- Task: Use the small Bảo Ngọc logo only in the shared navigation/sidebar menu drawer.
-- Next recommended task: Verify login, header, and main pages still use the old logo while the drawer/menu uses the small logo.
+- Task: Completed the customer page redesign with responsive cards, top search toolbar, sequence numbers, and customer soft-delete.
+- Next recommended task: Verify the redesigned `/customers` page locally across desktop/mobile and all roles.
 
 ## Recently Completed
 
+- Redesigned `/customers`: replaced the table with responsive customer cards, displayed list sequence numbers instead of customer codes, moved search/search button/add button above the list, removed duplicate actions, and added empty states.
+- Added OWNER/ADMIN customer soft-delete with a confirmation dialog, `location_id` scoping, preserved historical data, and audit logging.
 - Split logo usage in `auth.py` so login and the shared top/header use `static/bao_ngoc_logo.png`, while only the drawer/menu uses `static/bao_ngoc_logo_small.png`.
 - Enlarged the centered Bảo Ngọc header logo with responsive CSS width rules for desktop/mobile while keeping the existing 56px header height and centered alignment.
 - Removed the large blank top gap below the shared header across pages by re-tuning NiceGUI/Quasar page-container/header spacing and testing the shared layout, including the `/sales` page-specific container.
@@ -67,6 +69,8 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-22: Ran `python -m py_compile customer.py; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git diff --check`.
+  - Command completed successfully with no syntax or whitespace errors reported for the customer page card redesign and soft-delete update.
 - 2026-07-15: Switched the shared navigation/sidebar header brand image in `auth.py` to `static/bao_ngoc_logo_small.png` only, leaving other branding usages unchanged.
 - 2026-07-15: Enlarged the shared centered header logo in `static/style.css` using responsive width rules for normal, mobile, and very small phone breakpoints.
 - 2026-07-15: Updated global CSS spacing to remove the large blank top gap below the shared header across all pages.

@@ -133,6 +133,45 @@ def create_customer(data: CustomerCreate, user: dict = Depends(get_current_user)
     return {"id": cur.lastrowid, "code": code, "message": "Khách hàng đã được tạo"}
 
 
+@router.delete("/{customer_id}")
+def delete_customer(customer_id: int, user: dict = Depends(require_role("OWNER"))):
+    """Soft-delete a customer at the current location."""
+    current_location_id = get_current_location_id()
+    if not current_location_id:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn cơ sở")
+
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT id, code, full_name, location_id
+               FROM customers
+               WHERE id = ? AND location_id = ? AND is_active = 1""",
+            (customer_id, current_location_id),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Không tìm thấy khách hàng tại cơ sở hiện tại hoặc khách hàng đã bị xóa",
+            )
+
+        updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            "UPDATE customers SET is_active = 0, updated_at = ? WHERE id = ? AND location_id = ?",
+            (updated_at, customer_id, current_location_id),
+        )
+        conn.execute(
+            """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+               VALUES (?, ?, 'deactivate', 'customer', ?, ?)""",
+            (
+                current_location_id,
+                user["id"],
+                customer_id,
+                f'{{"code":"{row["code"]}","name":"{row["full_name"]}"}}',
+            ),
+        )
+
+    return {"message": "Khách hàng đã được xóa"}
+
+
 @router.put("/{customer_id}")
 def update_customer(customer_id: int, data: CustomerUpdate, user: dict = Depends(require_role("OWNER"))):
     current_location_id = get_current_location_id()
@@ -272,19 +311,23 @@ def render():
             ui.label("Quản lý khách hàng")
             ui.label(f"Cơ sở: {location_name}").classes("text-sm text-gray-500 ml-auto")
 
-        search_input = ui.input("Tìm theo mã, tên, hoặc số điện thoại").props("outlined clearable dense").classes("flex-grow")
+        search_input = ui.input("Tìm theo mã, tên hoặc số điện thoại").props(
+            "outlined clearable dense"
+        ).classes("customer-search-input")
+        with ui.element("div").classes("customer-search-toolbar"):
+            search_input.move()
+            ui.button(
+                "Tìm",
+                icon="search",
+                on_click=lambda: refresh_customers(),
+            ).props("unelevated").classes("btn-primary customer-search-button")
+            ui.button(
+                "Thêm khách hàng",
+                icon="person_add",
+                on_click=lambda: create_dialog.open(),
+            ).props("unelevated").classes("btn-success customer-add-button")
 
-        customer_table = ui.table(
-            columns=[
-                {"name": "code", "label": "Mã KH", "field": "code"},
-                {"name": "name", "label": "Họ và tên", "field": "full_name"},
-                {"name": "phone", "label": "Số điện thoại", "field": "phone"},
-                {"name": "birth_date", "label": "Ngày sinh", "field": "birth_date"},
-                {"name": "action", "label": "Thao tác", "field": "action"},
-            ],
-            rows=[],
-            row_key="id",
-        ).classes("w-full")
+        customer_list = ui.element("div").classes("customer-card-grid")
 
         def _fmt_birth_date(bd):
             """Convert YYYY-MM-DD to DD/MM/YYYY for display."""
@@ -335,7 +378,7 @@ def render():
 
         def refresh_customers():
             with get_db() as conn:
-                search = search_input.value
+                search = (search_input.value or "").strip()
                 if search:
                     like = f"%{search}%"
                     rows = conn.execute(
@@ -348,11 +391,59 @@ def render():
                         (loc_id,),
                     ).fetchall()
 
-            customer_table.rows = [
-                {**dict(r), "birth_date": _fmt_birth_date(r.get("birth_date")), "action": r["id"]}
-                for r in rows
-            ]
-            customer_table.update()
+            customers = [dict(row) for row in rows]
+            customer_list.clear()
+            with customer_list:
+                if not customers:
+                    with ui.column().classes("customer-empty-state"):
+                        ui.icon("person_search").classes("customer-empty-icon")
+                        ui.label(
+                            "Không tìm thấy khách hàng phù hợp"
+                            if search
+                            else "Chưa có khách hàng tại cơ sở này"
+                        ).classes("customer-empty-title")
+                        ui.label(
+                            "Hãy thử từ khóa khác"
+                            if search
+                            else "Nhấn “Thêm khách hàng” để tạo khách hàng đầu tiên"
+                        ).classes("customer-empty-description")
+                    return
+
+                can_manage = app.storage.user.get("role") in {"OWNER", "ADMIN"}
+                for index, customer in enumerate(customers, start=1):
+                    with ui.card().classes("customer-card"):
+                        with ui.row().classes("customer-card-heading"):
+                            with ui.element("div").classes("customer-order"):
+                                ui.label(str(index))
+                            with ui.column().classes("customer-name-wrap"):
+                                ui.label(customer["full_name"]).classes("customer-name")
+                                ui.label("Khách hàng").classes("customer-type-label")
+
+                        with ui.column().classes("customer-info-list"):
+                            with ui.row().classes("customer-info-row"):
+                                ui.icon("phone").classes("customer-info-icon")
+                                ui.label(customer.get("phone") or "Chưa có số điện thoại")
+                            if customer.get("birth_date"):
+                                with ui.row().classes("customer-info-row"):
+                                    ui.icon("cake").classes("customer-info-icon")
+                                    ui.label(_fmt_birth_date(customer["birth_date"]))
+                            if (customer.get("notes") or "").strip():
+                                with ui.row().classes("customer-info-row customer-notes-row"):
+                                    ui.icon("notes").classes("customer-info-icon")
+                                    ui.label(customer["notes"]).classes("customer-notes")
+
+                        if can_manage:
+                            with ui.row().classes("customer-card-actions"):
+                                ui.button(
+                                    "Sửa",
+                                    icon="edit",
+                                    on_click=lambda row=customer: open_edit(row),
+                                ).props("flat no-caps").classes("customer-edit-button")
+                                ui.button(
+                                    "Xóa",
+                                    icon="delete_outline",
+                                    on_click=lambda row=customer: open_delete(row),
+                                ).props("flat no-caps").classes("customer-delete-button")
 
         with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
             with ui.element("div").classes("absolute top-2 right-2"):
@@ -441,7 +532,6 @@ def render():
             ui.label("Sửa khách hàng").classes("text-xl font-bold mb-4 pr-8")
             ui.label(f"Cơ sở: {location_name}").classes("text-sm text-gray-500 mb-3")
             edit_id = ui.number("edit_id").props("hidden")
-            e_code = ui.input("Mã KH (không thể sửa)").props("outlined dense readonly").classes("w-full mb-2")
             e_name = ui.input("Họ và tên *").props("outlined dense").classes("w-full mb-2")
             e_phone = ui.input("Số điện thoại").props("outlined dense").classes("w-full mb-2")
             e_birth_date = _create_birth_date_picker("Ngày sinh")
@@ -492,7 +582,6 @@ def render():
 
         def open_edit(row):
             edit_id.value = row.get("id")
-            e_code.value = row.get("code", "")
             e_name.value = row.get("full_name", "")
             e_phone.value = row.get("phone", "")
             _set_birth_date_picker_value(e_birth_date, row.get("birth_date", ""))
@@ -500,27 +589,81 @@ def render():
             edit_err.set_text("")
             edit_dialog.open()
 
-        with ui.element("div").classes("search-bar"):
-            search_input.move()
-            ui.button("Tìm", icon="search", on_click=refresh_customers).props("outlined")
-            ui.button("Thêm khách hàng", icon="person_add", on_click=create_dialog.open).props("unelevated").classes("btn-success")
+        selected_customer = {"id": None, "name": ""}
 
-        with ui.row().classes("gap-2 mb-4"):
-            ui.button("Thêm khách hàng", on_click=create_dialog.open, icon="person_add").props("unelevated").classes("btn-success")
-            ui.button("Làm mới", on_click=refresh_customers, icon="refresh").props("outlined")
+        with ui.dialog() as delete_dialog, ui.card().classes(
+            "responsive-dialog-card customer-delete-dialog"
+        ):
+            with ui.element("div").classes("absolute top-2 right-2"):
+                ui.button(icon="close", on_click=delete_dialog.close).props(
+                    "flat round dense"
+                ).tooltip("Đóng")
+            ui.icon("warning_amber").classes("customer-delete-dialog-icon")
+            ui.label("Xóa khách hàng?").classes("text-xl font-bold pr-8")
+            delete_message = ui.label().classes("text-gray-600")
+            ui.label(
+                "Khách hàng sẽ không còn xuất hiện trong danh sách, nhưng lịch sử liên quan vẫn được giữ lại."
+            ).classes("text-sm text-gray-500")
+            delete_error = ui.label().classes("text-red-500 text-sm")
+
+            def handle_delete():
+                delete_error.set_text("")
+                if app.storage.user.get("role") not in {"OWNER", "ADMIN"}:
+                    delete_error.set_text("Bạn không có quyền xóa khách hàng")
+                    return
+
+                customer_id = selected_customer["id"]
+                user_id = app.storage.user.get("user_id")
+                with get_db() as conn:
+                    row = conn.execute(
+                        """SELECT id, code, full_name FROM customers
+                           WHERE id = ? AND location_id = ? AND is_active = 1""",
+                        (customer_id, loc_id),
+                    ).fetchone()
+                    if row is None:
+                        delete_error.set_text(
+                            "Không tìm thấy khách hàng hoặc khách hàng đã được xóa"
+                        )
+                        return
+
+                    updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                    conn.execute(
+                        "UPDATE customers SET is_active = 0, updated_at = ? WHERE id = ? AND location_id = ?",
+                        (updated_at, customer_id, loc_id),
+                    )
+                    conn.execute(
+                        """INSERT INTO audit_logs (location_id, user_id, action, entity_type, entity_id, details)
+                           VALUES (?, ?, 'deactivate', 'customer', ?, ?)""",
+                        (
+                            loc_id,
+                            user_id,
+                            customer_id,
+                            f'{{"code":"{row["code"]}","name":"{row["full_name"]}"}}',
+                        ),
+                    )
+
+                delete_dialog.close()
+                refresh_customers()
+                ui.notify("Đã xóa khách hàng", type="positive")
+
+            with ui.row().classes("gap-2 justify-end w-full mt-3"):
+                ui.button("Hủy", on_click=delete_dialog.close).props("outlined")
+                ui.button(
+                    "Xóa khách hàng",
+                    icon="delete_outline",
+                    on_click=handle_delete,
+                ).props("unelevated").classes("btn-danger")
+
+        def open_delete(row):
+            selected_customer["id"] = row.get("id")
+            selected_customer["name"] = row.get("full_name", "")
+            delete_message.set_text(
+                f'Bạn có chắc muốn xóa khách hàng “{selected_customer["name"]}”?'
+            )
+            delete_error.set_text("")
+            delete_dialog.open()
 
         search_input.on("keyup.enter", refresh_customers)
-
-        customer_table.add_slot(
-            "body-cell-action",
-            """
-            <q-td :props="props">
-                <q-btn flat color="primary" icon="edit" @click="$parent.$emit('edit_customer', props.row)">
-                    <q-tooltip>Sửa</q-tooltip>
-                </q-btn>
-            </q-td>
-            """,
-        )
-        customer_table.on("edit_customer", lambda e: open_edit(e.args))
+        search_input.on("clear", refresh_customers)
 
         refresh_customers()
