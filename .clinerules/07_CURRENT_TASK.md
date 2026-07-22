@@ -8,16 +8,18 @@ alwaysApply: true
 ## Status Snapshot
 
 - Last updated: 2026-07-22
-- Current focus: Visually verify the final compact `/customers` desktop-table/mobile-card layout locally.
-- App status: Full core system completed; the customer list implementation passed static verification, with browser verification still pending.
+- Current focus: Visually verify the CSS cleanup and final compact `/customers` desktop-table/mobile-card layout locally.
+- App status: Full core system completed; unused CSS has been removed without changing active selectors, while browser verification is still pending.
 
 ## Active Task
 
-- Task: Verify the final `/customers` layout after removing STT/the separate action column and moving permission-aware edit/delete actions beside the customer name.
-- Next recommended task: Verify `/customers` visually across desktop/mobile and STAFF/MANAGER/OWNER, including search, add/edit dialogs, birth-date picker, and soft-delete confirmation.
+- Task: Verify the cleaned shared stylesheet and final `/customers` layout across desktop/mobile.
+- Next recommended task: Verify main pages visually after CSS cleanup, prioritizing `/customers`, `/sales`, login, dashboard, dialogs, and shared navigation.
 
 ## Recently Completed
 
+- Reduced `static/style.css` from 1,601 to 1,501 lines by removing 13 confirmed-unused custom style groups and simplifying selectors that referenced only active classes; retained the existing single-file structure and active UI behavior.
+- Removed the shared mobile bottom menu from `auth.py`, deleted its obsolete CSS, and removed the mobile page spacing that was reserved for that footer; the top header and navigation drawer remain available.
 - Removed the previous customer-page CSS and replaced it with a new compact responsive layout based on the supplied reference: desktop table, mobile label-value cards, search toolbar, add button, and compact edit/delete actions.
 - Rebuilt the `/customers` list markup with STT, customer code, name, phone, birth date, notes, and permission-aware actions while preserving search, location scoping, soft delete, dialogs, and audit behavior.
 - Redesigned `/customers` with a structured page header, location/count summary, clearer search actions, avatar initials, customer-code badges, labeled contact information, safer compact delete action, and responsive mobile styling.
@@ -73,6 +75,14 @@ alwaysApply: true
 
 ## Verification Log
 
+- 2026-07-22: Audited and safely shortened `static/style.css`.
+  - Reduced the current file from 1,601 lines / 38,312 bytes / 288 rule blocks to 1,501 lines / 35,995 bytes / 273 rule blocks.
+  - Confirmed balanced braces and no remaining custom CSS class lacking a Python source reference; repeated selectors decreased from 64 to 55.
+  - `python -m py_compile main.py auth.py customer.py dashboard.py transaction.py package.py checkin.py` and `git diff --check` completed successfully.
+  - Browser visual regression verification remains pending for desktop/mobile.
+- 2026-07-22: Removed the shared mobile bottom navigation and its obsolete footer/button CSS.
+  - Confirmed no remaining `ui.footer`, `_mb_btn`, `mobile-nav-btn`, `.q-footer`, or footer-reserved `5.5rem` page padding references.
+  - `python -m py_compile auth.py` and `git diff --check` completed successfully.
 - 2026-07-22: Rechecked the interrupted `/customers` task and confirmed the pending changes remain limited to `customer.py` and `static/style.css`.
   - Reviewed the final five-column desktop markup, mobile label-value card CSS, permission-aware actions, search/empty states, add/edit close buttons, birth-date picker, location scoping, soft delete, and audit logging.
   - `python -m py_compile customer.py main.py auth.py` and `git diff --check` completed successfully.

@@ -505,9 +505,7 @@ header.q-header .text-white\/80 {
 }
 
 /* ── Search Bar ────────────────────────────────────────────────── */
-.search-bar,
-.responsive-row,
-.responsive-actions {
+.search-bar {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -517,20 +515,8 @@ header.q-header .text-white\/80 {
 }
 
 .search-bar .q-field,
-.search-bar .q-btn,
-.responsive-row .q-field,
-.responsive-row .q-btn,
-.responsive-actions .q-btn {
+.search-bar .q-btn {
     width: 100%;
-}
-
-.responsive-card {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 1rem;
 }
 
 /* ── Customer page: desktop table / mobile cards ─────────────────── */
@@ -644,10 +630,6 @@ header.q-header .text-white\/80 {
     padding: 0.75rem;
 }
 
-.customer-actions-heading {
-    text-align: center;
-}
-
 .customer-table-body {
     width: 100%;
 }
@@ -738,10 +720,6 @@ header.q-header .text-white\/80 {
 
 .customer-delete-button:hover {
     background: #ffe8e6 !important;
-}
-
-.customer-no-actions {
-    color: var(--gray-400);
 }
 
 .customer-empty-state {
@@ -977,28 +955,18 @@ header.q-header .text-white\/80 {
 }
 
 @media (min-width: 768px) {
-    .search-bar,
-    .responsive-row,
-    .responsive-actions {
+    .search-bar {
         flex-direction: row;
         align-items: end;
-        gap: 0.75rem;
     }
 
-    .search-bar .q-field,
-    .responsive-row .q-field {
+    .search-bar .q-field {
         flex: 1 1 16rem;
         width: auto;
     }
 
-    .search-bar .q-btn,
-    .responsive-row .q-btn,
-    .responsive-actions .q-btn {
+    .search-bar .q-btn {
         width: auto;
-    }
-
-    .responsive-actions {
-        justify-content: flex-end;
     }
 }
 
@@ -1007,29 +975,6 @@ header.q-header .text-white\/80 {
 ::-webkit-scrollbar-track { background: var(--gray-100); }
 ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
-
-/* ── Package Card (checkin) ────────────────────────────────────── */
-.package-card {
-    background: var(--white);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    border: 1px solid var(--gray-200);
-    padding: 1rem;
-    margin-bottom: 0.75rem;
-}
-.package-card.expired {
-    border-color: var(--danger);
-    background: var(--danger-bg);
-}
-.package-card .pkg-title {
-    font-weight: 700;
-    font-size: 1rem;
-    margin-bottom: 0.25rem;
-}
-.package-card .pkg-info {
-    font-size: 0.85rem;
-    color: var(--gray-600);
-}
 
 /* ── Login Page ────────────────────────────────────────────────── */
 .login-body {
@@ -1158,20 +1103,7 @@ body.login-body .q-page-container {
     min-height: 100vh !important;
 }
 
-/* ── Filter Grid ───────────────────────────────────────────────── */
-.filter-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 0.75rem;
-}
-@media (max-width: 640px) {
-    .filter-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
 /* ── Dashboard / Revenue Summary Grid ──────────────────────────── */
-.revenue-row,
 .dashboard-stat-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1189,7 +1121,6 @@ body.login-body .q-page-container {
 }
 
 @media (max-width: 640px) {
-    .revenue-row,
     .dashboard-stat-grid {
         grid-template-columns: 1fr;
         gap: 0.75rem;
@@ -1209,15 +1140,6 @@ body.login-body .q-page-container {
 }
 
 /* ── Modern SaaS Utilities ─────────────────────────────────────── */
-.toolbar-card {
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 0.9rem;
-    margin-bottom: 1rem;
-}
-
 .empty-state {
     background: rgba(255, 255, 255, 0.96);
     border: 1px dashed var(--gray-300);
@@ -1257,8 +1179,7 @@ body.login-body .q-page-container {
         min-width: 44px !important;
     }
 
-    .custom-card,
-    .toolbar-card {
+    .custom-card {
         padding: 0.85rem !important;
     }
 
@@ -1356,17 +1277,6 @@ body.login-body .q-page-container {
     gap: 0.7rem;
 }
 
-.role-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.2rem 0.65rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    background: var(--primary-bg);
-    color: var(--primary-dark);
-}
-
 @media (max-width: 640px) {
     .login-center {
         padding: 0.75rem 0.75rem 0.5rem;
@@ -1403,35 +1313,11 @@ body.login-body .q-page-container {
     }
 }
 
-/* ── Mobile Bottom Navigation Bar ──────────────────────────────── */
-.mobile-nav-btn {
-    min-width: 0 !important;
-    min-height: 0 !important;
-    padding: 4px 8px !important;
-    border-radius: var(--radius-sm) !important;
-    flex: 0 0 auto;
-}
-
-.mobile-nav-btn .q-btn__content {
-    flex-direction: column !important;
-    align-items: center !important;
-    gap: 0 !important;
-    padding: 2px !important;
-}
-
-/* Active state for bottom nav (apply on current page) */
-.mobile-nav-btn.active-nav {
-    background: var(--primary-bg) !important;
-    color: var(--primary-dark) !important;
-}
-
-/* Footer spacer for mobile (so content doesn't hide behind bottom bar) */
 @media (max-width: 767px) {
     .page-container {
-        padding-bottom: 5.5rem !important;
         padding-top: 0.5rem !important;
     }
-    
+
     /* Make dialogs full-width on mobile */
     .q-dialog .q-card {
         margin: 0.5rem !important;
@@ -1446,20 +1332,10 @@ body.login-body .q-page-container {
     .admin-toolbar .q-btn {
         flex: 1;
     }
-    
-    /* Footer height */
-    .q-footer {
-        min-height: 56px;
-    }
+
 }
 
 @media (max-width: 374px) {
-    /* Very small phones: smaller bottom nav */
-    .mobile-nav-btn {
-        padding: 2px 4px !important;
-        font-size: 0.7rem !important;
-    }
-
     .header-brand-center {
         width: min(80vw, 240px);
     }
@@ -1519,12 +1395,6 @@ body.login-body .q-page-container {
 
 .sales-package-panel {
     margin-bottom: 0.75rem;
-}
-
-.sales-inline-hint {
-    color: var(--gray-500);
-    font-size: 0.78rem;
-    font-weight: 500;
 }
 
 .sales-product-help {
@@ -1619,10 +1489,6 @@ body.login-body .q-page-container {
 @media (max-width: 640px) {
     .sales-page-container {
         padding-top: 0 !important;
-    }
-
-    .sales-inline-hint {
-        display: none;
     }
 
     .sales-type-filter {

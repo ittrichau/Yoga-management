@@ -565,7 +565,7 @@ def render_location_dialog():
 
 
 def render_navbar():
-    """Shared responsive navbar with location switcher + mobile bottom bar."""
+    """Shared responsive navbar with location switcher and navigation drawer."""
     load_styles()
 
     role = app.storage.user.get("role", "TEACHER")
@@ -687,27 +687,6 @@ def render_navbar():
 
             # Desktop logout
             ui.button(icon="logout", on_click=logout).props("flat round dense").tooltip("Đăng xuất").classes("hidden md:inline-flex")
-
-    # ═══ MOBILE BOTTOM NAVIGATION BAR ═══
-    with ui.footer().classes("md:hidden").props("bordered").style("background: white !important"):
-        with ui.row().classes("w-full justify-around items-center py-1"):
-            _mb_btn("📊", "Trang chính", "/dashboard")
-            _mb_btn("💰", "Bán hàng", "/sales")
-            _mb_btn("🟡", "Check-in", "/checkin")
-            _mb_btn("👥", "Khách", "/customers")
-            _mb_btn("☰", "Menu", None, loc_dialog.open)
-
-
-def _mb_btn(icon: str, label: str, path: str | None, on_click=None):
-    """Render a mobile bottom-nav button."""
-    if path:
-        btn = ui.button(icon=icon, on_click=lambda p=path: ui.navigate.to(p))
-    else:
-        btn = ui.button(icon=icon, on_click=on_click)
-    btn.props("flat dense padding-none").classes("mobile-nav-btn flex flex-col items-center gap-0")
-    with btn:
-        ui.label(label).classes("text-[10px] leading-none mt-1")
-
 
 # ==================== Login & Location Pages ====================
 @ui.page("/login")
