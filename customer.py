@@ -306,26 +306,46 @@ def render():
     location_name = location["name"] if location else "Chưa chọn cơ sở"
 
     with ui.element("div").classes("page-container"):
-        with ui.row().classes("items-center page-title w-full"):
-            ui.label("👥").classes("text-2xl")
-            ui.label("Quản lý khách hàng")
-            ui.label(f"Cơ sở: {location_name}").classes("text-sm text-gray-500 ml-auto")
+        with ui.element("section").classes("customer-page-header"):
+            with ui.row().classes("customer-page-heading"):
+                with ui.element("div").classes("customer-page-icon"):
+                    ui.icon("groups")
+                with ui.column().classes("customer-page-title-wrap"):
+                    ui.label("Khách hàng").classes("customer-page-title")
+                    ui.label(
+                        "Quản lý hồ sơ và thông tin liên hệ"
+                    ).classes("customer-page-subtitle")
+                ui.label(location_name).classes("customer-location-badge")
 
-        search_input = ui.input("Tìm theo mã, tên hoặc số điện thoại").props(
-            "outlined clearable dense"
-        ).classes("customer-search-input")
-        with ui.element("div").classes("customer-search-toolbar"):
-            search_input.move()
-            ui.button(
-                "Tìm",
-                icon="search",
-                on_click=lambda: refresh_customers(),
-            ).props("unelevated").classes("btn-primary customer-search-button")
-            ui.button(
-                "Thêm khách hàng",
-                icon="person_add",
-                on_click=lambda: create_dialog.open(),
-            ).props("unelevated").classes("btn-success customer-add-button")
+            with ui.row().classes("customer-summary-row"):
+                customer_count = ui.label("0 khách hàng").classes(
+                    "customer-count-label"
+                )
+                ui.label("Danh sách tại cơ sở hiện tại").classes(
+                    "customer-count-caption"
+                )
+
+        with ui.element("section").classes("customer-toolbar-card"):
+            search_input = ui.input(
+                placeholder="Tìm theo tên, số điện thoại hoặc mã khách hàng"
+            ).props("outlined clearable dense").classes("customer-search-input")
+            with search_input.add_slot("prepend"):
+                ui.icon("search").classes("customer-search-field-icon")
+            with ui.element("div").classes("customer-search-actions"):
+                ui.button(
+                    "Tìm kiếm",
+                    icon="search",
+                    on_click=lambda: refresh_customers(),
+                ).props("unelevated no-caps").classes(
+                    "btn-primary customer-search-button"
+                )
+                ui.button(
+                    "Thêm khách hàng",
+                    icon="person_add",
+                    on_click=lambda: create_dialog.open(),
+                ).props("unelevated no-caps").classes(
+                    "btn-success customer-add-button"
+                )
 
         customer_list = ui.element("div").classes("customer-card-grid")
 
@@ -405,6 +425,11 @@ def render():
                     ).fetchall()
 
             customers = [dict(row) for row in rows]
+            customer_count.set_text(
+                f"{len(customers)} khách hàng"
+                if not search
+                else f"{len(customers)} kết quả"
+            )
             customer_list.clear()
             with customer_list:
                 if not customers:
@@ -424,39 +449,68 @@ def render():
 
                 can_manage = app.storage.user.get("role") in {"OWNER", "ADMIN"}
                 for index, customer in enumerate(customers, start=1):
+                    initials = "".join(
+                        part[0] for part in customer["full_name"].split()[-2:]
+                        if part
+                    ).upper() or "KH"
                     with ui.card().classes("customer-card"):
                         with ui.row().classes("customer-card-heading"):
-                            with ui.element("div").classes("customer-order"):
-                                ui.label(str(index))
+                            with ui.element("div").classes("customer-avatar"):
+                                ui.label(initials)
                             with ui.column().classes("customer-name-wrap"):
                                 ui.label(customer["full_name"]).classes("customer-name")
-                                ui.label("Khách hàng").classes("customer-type-label")
+                                with ui.row().classes("customer-card-meta"):
+                                    ui.label(customer.get("code") or f"KH-{index}").classes(
+                                        "customer-code-badge"
+                                    )
+                                    ui.label(f"STT {index}").classes("customer-order-label")
 
                         with ui.column().classes("customer-info-list"):
                             with ui.row().classes("customer-info-row"):
-                                ui.icon("phone").classes("customer-info-icon")
-                                ui.label(customer.get("phone") or "Chưa có số điện thoại")
+                                with ui.element("div").classes("customer-info-icon-wrap"):
+                                    ui.icon("phone")
+                                with ui.column().classes("customer-info-content"):
+                                    ui.label("Số điện thoại").classes("customer-info-label")
+                                    ui.label(
+                                        customer.get("phone") or "Chưa cập nhật"
+                                    ).classes(
+                                        "customer-info-value"
+                                        + ("" if customer.get("phone") else " is-empty")
+                                    )
                             if customer.get("birth_date"):
                                 with ui.row().classes("customer-info-row"):
-                                    ui.icon("cake").classes("customer-info-icon")
-                                    ui.label(_fmt_birth_date(customer["birth_date"]))
+                                    with ui.element("div").classes("customer-info-icon-wrap"):
+                                        ui.icon("cake")
+                                    with ui.column().classes("customer-info-content"):
+                                        ui.label("Ngày sinh").classes("customer-info-label")
+                                        ui.label(
+                                            _fmt_birth_date(customer["birth_date"])
+                                        ).classes("customer-info-value")
                             if (customer.get("notes") or "").strip():
-                                with ui.row().classes("customer-info-row customer-notes-row"):
-                                    ui.icon("notes").classes("customer-info-icon")
-                                    ui.label(customer["notes"]).classes("customer-notes")
+                                with ui.row().classes(
+                                    "customer-info-row customer-notes-row"
+                                ):
+                                    with ui.element("div").classes("customer-info-icon-wrap"):
+                                        ui.icon("notes")
+                                    with ui.column().classes("customer-info-content"):
+                                        ui.label("Ghi chú").classes("customer-info-label")
+                                        ui.label(customer["notes"]).classes(
+                                            "customer-info-value customer-notes"
+                                        )
 
                         if can_manage:
                             with ui.row().classes("customer-card-actions"):
                                 ui.button(
-                                    "Sửa",
+                                    "Chỉnh sửa",
                                     icon="edit",
                                     on_click=lambda row=customer: open_edit(row),
                                 ).props("flat no-caps").classes("customer-edit-button")
                                 ui.button(
-                                    "Xóa",
                                     icon="delete_outline",
                                     on_click=lambda row=customer: open_delete(row),
-                                ).props("flat no-caps").classes("customer-delete-button")
+                                ).props("flat round dense").classes(
+                                    "customer-delete-button"
+                                ).tooltip("Xóa khách hàng")
 
         with ui.dialog() as create_dialog, ui.card().classes("p-6 w-96 max-w-full relative"):
             with ui.element("div").classes("absolute top-2 right-2"):
